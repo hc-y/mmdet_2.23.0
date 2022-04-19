@@ -76,7 +76,7 @@ def _get_bias_color(base, max_dist=30):
     return np.clip(new_color, 0, 255, new_color)
 
 
-def draw_bboxes(ax, bboxes, color='g', alpha=0.8, thickness=2):
+def draw_bboxes(ax, bboxes, color='g', alpha=0.8, thickness=2, img_wh=(640,640)):
     """Draw bounding boxes on the axes.
 
     Args:
@@ -87,6 +87,7 @@ def draw_bboxes(ax, bboxes, color='g', alpha=0.8, thickness=2):
             bounding boxes.
         alpha (float): Transparency of bounding boxes. Default: 0.8.
         thickness (int): Thickness of lines. Default: 2.
+        img_wh (tuple): the width and height of image.
 
     Returns:
         matplotlib.Axes: The result axes.
@@ -94,10 +95,25 @@ def draw_bboxes(ax, bboxes, color='g', alpha=0.8, thickness=2):
     polygons = []
     for i, bbox in enumerate(bboxes):
         bbox_int = bbox.astype(np.int32)
-        poly = [[bbox_int[0], bbox_int[1]], [bbox_int[0], bbox_int[3]],
+        poly = [[bbox_int[0], bbox_int[1]], [bbox_int[0], bbox_int[3]],  # hc-y_note0121:the corner of poly:(top left,bottom left,bottom right,top right)
                 [bbox_int[2], bbox_int[3]], [bbox_int[2], bbox_int[1]]]
         np_poly = np.array(poly).reshape((4, 2))
         polygons.append(Polygon(np_poly))
+    
+    # chip_xywh = (0.5, 0.5, 0.5, 0.5)
+    # hc-y_note0114:imgsz=(1920, 1200), inputsz=(1280, 800), offset_topleft = (1, 0)时, chip_xywh = (0.5, 0.52, 0.5, 0.48) <-- (0.5, 0.5, 0.5, 0.5)
+    chip_xywh = (0.5, 0.52, 0.5, 0.48)
+    # hc-y_note0114:imgsz=(1920, 1200), inputsz=(1024, 640), offset_topleft = (1, 0)时, chip_xywh = (0.5, 0.55, 0.5, 0.5) <-- (0.5, 0.5, 0.5, 0.5)
+    # chip_xywh = (0.5, 0.55, 0.5, 0.5)
+    from tools.general import xywh2xyxy
+    chip_xyxy = xywh2xyxy(np.array([chip_xywh]))[0]
+    chip_xyxy[::2] = chip_xyxy[::2] * img_wh[0]
+    chip_xyxy[1::2] = chip_xyxy[1::2] * img_wh[1]
+    chip_poly = np.array([[chip_xyxy[0], chip_xyxy[1]], [chip_xyxy[0], chip_xyxy[3]],
+                          [chip_xyxy[2], chip_xyxy[3]], [chip_xyxy[2], chip_xyxy[1]]]).reshape((4, 2)).astype(np.int32)
+    polygons.append(Polygon(chip_poly))
+    color.append(color_val_matplotlib((255,255,255)))
+
     p = PatchCollection(
         polygons,
         facecolor='none',
@@ -223,7 +239,7 @@ def imshow_det_bboxes(img,
     Args:
         img (str | ndarray): The image to be displayed.
         bboxes (ndarray): Bounding boxes (with scores), shaped (n, 4) or
-            (n, 5).
+            (n, 5).  # hc-y_note0121:(x1,y1,x2,y2);
         labels (ndarray): Labels of bboxes.
         segms (ndarray | None): Masks, shaped (n,h,w) or None.
         class_names (list[str]): Names of each classes.
@@ -299,7 +315,7 @@ def imshow_det_bboxes(img,
         num_bboxes = bboxes.shape[0]
         bbox_palette = palette_val(get_palette(bbox_color, max_label + 1))
         colors = [bbox_palette[label] for label in labels[:num_bboxes]]
-        draw_bboxes(ax, bboxes, colors, alpha=0.8, thickness=thickness)
+        draw_bboxes(ax, bboxes, colors, alpha=0.8, thickness=thickness, img_wh=(width, height))
 
         horizontal_alignment = 'left'
         positions = bboxes[:, :2].astype(np.int32) + thickness

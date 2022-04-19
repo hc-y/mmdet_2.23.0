@@ -1,3 +1,5 @@
+# hc-y_modify1103:
+# CUDA_VISIBLE_DEVICES=4,5,6,7 bash ./tools/dist_train.sh configs/yolof/yolof_r50_c5_8x8_1x_coco.py 4
 _base_ = [
     '../_base_/datasets/coco_detection.py',
     '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py'
@@ -61,7 +63,7 @@ model = dict(
 # optimizer
 optimizer = dict(
     type='SGD',
-    lr=0.12,
+    lr=0.12*8*4/(8*8),
     momentum=0.9,
     weight_decay=0.0001,
     paramwise_cfg=dict(
@@ -99,7 +101,7 @@ test_pipeline = [
 ]
 data = dict(
     samples_per_gpu=8,
-    workers_per_gpu=8,
+    workers_per_gpu=8,  # hc-y_modify1231:8 8, 2 4
     train=dict(pipeline=train_pipeline),
     val=dict(pipeline=test_pipeline),
     test=dict(pipeline=test_pipeline))

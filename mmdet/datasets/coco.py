@@ -78,6 +78,11 @@ class CocoDataset(CustomDataset):
         self.img_ids = self.coco.get_img_ids()
         data_infos = []
         total_ann_ids = []
+        # hc-y_note1231:只采样出少量的图片用于训练;
+        if 'instances_train2017' in ann_file:
+            self.img_ids = self.img_ids[::12]  # './../datasets/coco/annotations/instances_train2017.json' 118287 images
+        elif 'instances_val2017' in ann_file:
+            self.img_ids = self.img_ids[::2]  # './../datasets/coco/annotations/instances_val2017.json' 5000 images
         for i in self.img_ids:
             info = self.coco.load_imgs([i])[0]
             info['filename'] = info['file_name']
@@ -250,6 +255,8 @@ class CocoDataset(CustomDataset):
                     data['bbox'] = self.xyxy2xywh(bboxes[i])
                     data['score'] = float(bboxes[i][4])
                     data['category_id'] = self.cat_ids[label]
+                    data['width'] = self.coco.imgs[img_id]['width']  # self.coco.load_imgs([img_id])[0]['width']  # hc-y_add0119:
+                    data['height'] = self.coco.imgs[img_id]['height']  # self.coco.load_imgs([img_id])[0]['height']  # hc-y_add0119:
                     json_results.append(data)
         return json_results
 
@@ -315,7 +322,7 @@ class CocoDataset(CustomDataset):
             json_results = self._det2json(results)
             result_files['bbox'] = f'{outfile_prefix}.bbox.json'
             result_files['proposal'] = f'{outfile_prefix}.bbox.json'
-            mmcv.dump(json_results, result_files['bbox'])
+            mmcv.dump(json_results, result_files['bbox'], indent=4)  # hc-y_note0118:原为mmcv.dump(json_results, result_files['bbox'])
         elif isinstance(results[0], tuple):
             json_results = self._segm2json(results)
             result_files['bbox'] = f'{outfile_prefix}.bbox.json'
@@ -392,7 +399,8 @@ class CocoDataset(CustomDataset):
                           classwise=False,
                           proposal_nums=(100, 300, 1000),
                           iou_thrs=None,
-                          metric_items=None):
+                          metric_items=None,
+                          stats_ap_csv=None, flag_train_last_epoch=False):
         """Instance segmentation and object detection evaluation in COCO
         protocol.
 
@@ -498,7 +506,11 @@ class CocoDataset(CustomDataset):
                 'AR@1000': 8,
                 'AR_s@1000': 9,
                 'AR_m@1000': 10,
-                'AR_l@1000': 11
+                'AR_l@1000': 11,
+                'mAP_60': 12,  # hc-y_add1231:
+                'mAP_70': 13,  # hc-y_add1231:
+                'mAP_80': 14,  # hc-y_add1231:
+                'mAP_90': 15,  # hc-y_add1231:
             }
             if metric_items is not None:
                 for metric_item in metric_items:
@@ -537,13 +549,26 @@ class CocoDataset(CustomDataset):
                     cocoEval.summarize()
                 print_log('\n' + redirect_string.getvalue(), logger=logger)
 
-                if classwise:  # Compute per-category AP
+                if stats_ap_csv is not None or flag_train_last_epoch:  # hc-y_add0108:输出 Class mAP mAP50 mAP60 mAP70 mAP75 mAP80 mAP90 AP_s AP_m AP_l AR100 AR300 AR1000 AR_s AR_m AR_l
+                    stasts_csv_header = ['Class', 'mAP', 'mAP50', 'mAP60', 'mAP70', 'mAP75', 'mAP80', 'mAP90', 
+                        'AP_s', 'AP_m', 'AP_l', 'AR100', 'AR300', 'AR1000', 'AR_s', 'AR_m', 'AR_l']
+                    stasts_csv_data = np.concatenate((cocoEval.stats[:2], cocoEval.stats[12:14], cocoEval.stats[2:3], cocoEval.stats[14:16], cocoEval.stats[3:12]),0)
+                    stats_ap_num = len(stasts_csv_header) - 1
+                    str_stasts_csv_header = '%20s' % stasts_csv_header[0] + ('%11s,' * stats_ap_num % tuple(stasts_csv_header[1:])).rstrip(',') + '\n'
+                    str_stasts_csv_data = '%20s' % 'all' + ('%11.4g,' * stats_ap_num % tuple(stasts_csv_data)).rstrip(',') + '\n'
+                    with open(stats_ap_csv, 'a') as f:
+                        f.write(str_stasts_csv_header + str_stasts_csv_data + '\n')
+
+                if classwise or flag_train_last_epoch:  # Compute per-category AP
                     # Compute per-category AP
                     # from https://github.com/facebookresearch/detectron2/
                     precisions = cocoEval.eval['precision']
                     # precision: (iou, recall, cls, area range, max dets)
+                    recalls = cocoEval.eval['recall']  # hc-y_add0108:recall: (iou, cls, area range, max dets)
+                    iouThrs_inds = [0, 2, 4, 5, 6, 8]
                     assert len(self.cat_ids) == precisions.shape[2]
 
+                    str_stasts_csv_data_per_cls = ''
                     results_per_category = []
                     for idx, catId in enumerate(self.cat_ids):
                         # area range index 0: all area ranges
@@ -555,13 +580,30 @@ class CocoDataset(CustomDataset):
                             ap = np.mean(precision)
                         else:
                             ap = float('nan')
+                        # hc-y_add0108:输出 per_Class mAP mAP50 mAP60 mAP70 mAP75 mAP80 mAP90 AP_s AP_m AP_l AR100 / / AR_s AR_m AR_l
+                        recall = recalls[:, idx, 0, -1]
+                        recall = recall[recall > -1]
+                        if recall.size:
+                            ar = np.mean(recall)
+                        else:
+                            ar = float('nan')
+                        p_selected = precisions[iouThrs_inds, :, idx, 0, -1]
+                        p_selected = (p_selected.sum(axis=1) / (p_selected > -1).sum(axis=1)).clip(min=-1)
+                        p_allsml = precisions[:, :, idx, :, -1].reshape(-1, 4)
+                        p_allsml = (p_allsml.sum(axis=0) / (p_allsml > -1).sum(axis=0)).clip(min=-1)
+                        r100_allsml = recalls[:, idx, :, -1]
+                        r100_allsml = (r100_allsml.sum(axis=0) / (r100_allsml > -1).sum(axis=0)).clip(min=-1)
+                        _val_per_cls = np.concatenate((p_allsml[0:1], p_selected, p_allsml[1:], r100_allsml[0:1], np.array([-1, -1]), r100_allsml[1:]))
                         results_per_category.append(
-                            (f'{nm["name"]}', f'{float(ap):0.3f}'))
+                            (f'{nm["name"]}', f'{float(ap):0.4f}', f'{float(ar):0.4f}'))
+                        str_stasts_csv_data_per_cls += '%20s' % nm["name"] + ('%11.4g,' * stats_ap_num % tuple(_val_per_cls)).rstrip(',') + '\n'
+                    with open(stats_ap_csv, 'a') as f:
+                        f.write(str_stasts_csv_data_per_cls)
 
-                    num_columns = min(6, len(results_per_category) * 2)
+                    num_columns = min(9, len(results_per_category) * 3)
                     results_flatten = list(
                         itertools.chain(*results_per_category))
-                    headers = ['category', 'AP'] * (num_columns // 2)
+                    headers = ['category', 'AP', 'AR'] * (num_columns // 3)
                     results_2d = itertools.zip_longest(*[
                         results_flatten[i::num_columns]
                         for i in range(num_columns)
@@ -573,7 +615,8 @@ class CocoDataset(CustomDataset):
 
                 if metric_items is None:
                     metric_items = [
-                        'mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l'
+                        'mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l',
+                        'mAP_60', 'mAP_70', 'mAP_80', 'mAP_90',  # hc-y_add1231:
                     ]
 
                 for metric_item in metric_items:
@@ -583,9 +626,11 @@ class CocoDataset(CustomDataset):
                     )
                     eval_results[key] = val
                 ap = cocoEval.stats[:6]
+                ap_extra = cocoEval.stats[-4:]  # hc-y_add1231:
                 eval_results[f'{metric}_mAP_copypaste'] = (
                     f'{ap[0]:.3f} {ap[1]:.3f} {ap[2]:.3f} {ap[3]:.3f} '
-                    f'{ap[4]:.3f} {ap[5]:.3f}')
+                    f'{ap[4]:.3f} {ap[5]:.3f} '
+                    f'{ap_extra[-4]:.3f} {ap_extra[-3]:.3f} {ap_extra[-2]:.3f} {ap_extra[-1]:.3f}')  # hc-y_add1231:
 
         return eval_results
 
@@ -593,6 +638,8 @@ class CocoDataset(CustomDataset):
                  results,
                  metric='bbox',
                  logger=None,
+                 runner=None,  # hc-y_add0108:correspond to /envs/mmlab/lib/python3.9/site-packages/mmcv/runner/hooks/evaluation.py
+                 val_dir=None,  # hc-y_add0110:path to the folder where checkpoint_file locates;
                  jsonfile_prefix=None,
                  classwise=False,
                  proposal_nums=(100, 300, 1000),
@@ -638,11 +685,20 @@ class CocoDataset(CustomDataset):
         coco_gt = self.coco
         self.cat_ids = coco_gt.get_cat_ids(cat_names=self.CLASSES)
 
+        flag_train_last_epoch = False if runner is None else runner.epoch == runner._max_epochs - 1
+        if jsonfile_prefix is None:  # hc-y_add0118:
+            _jsonfile_prefix = (osp.dirname(val_dir) if val_dir is not None else runner.work_dir) + '/results'
+            if not osp.exists(_jsonfile_prefix + '.bbox.json') and flag_train_last_epoch:
+                jsonfile_prefix = _jsonfile_prefix
+                # import os
+                # os.remove(_jsonfile_prefix + '.bbox.json')
+        from pathlib import Path
+        stats_ap_csv = Path(val_dir).parent / f'stats_ap_02.csv' if val_dir is not None else Path(runner.work_dir) / f'stats_ap.csv'
         result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
         eval_results = self.evaluate_det_segm(results, result_files, coco_gt,
                                               metrics, logger, classwise,
                                               proposal_nums, iou_thrs,
-                                              metric_items)
+                                              metric_items, stats_ap_csv=stats_ap_csv, flag_train_last_epoch=flag_train_last_epoch)
 
         if tmp_dir is not None:
             tmp_dir.cleanup()

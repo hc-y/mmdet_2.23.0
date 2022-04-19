@@ -229,7 +229,7 @@ def main():
         model.CLASSES = dataset.CLASSES
 
     if not distributed:
-        model = MMDataParallel(model, device_ids=cfg.gpu_ids)
+        model = MMDataParallel(model, device_ids=cfg.gpu_ids)  # hc-y_note1231:指定特定的 GPU
         outputs = single_gpu_test(model, data_loader, args.show, args.show_dir,
                                   args.show_score_thr)
     else:
@@ -257,6 +257,7 @@ def main():
             ]:
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
+            eval_kwargs.update(dict(val_dir = args.checkpoint))  # hc-y_add0110:
             metric = dataset.evaluate(outputs, **eval_kwargs)
             print(metric)
             metric_dict = dict(config=args.config, metric=metric)

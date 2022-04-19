@@ -120,7 +120,7 @@ def train_detector(model,
             broadcast_buffers=False,
             find_unused_parameters=find_unused_parameters)
     else:
-        model = MMDataParallel(model, device_ids=cfg.gpu_ids)
+        model = MMDataParallel(model, device_ids=cfg.gpu_ids)  # hc-y_note1231:指定特定的 GPU
 
     # build runner
     optimizer = build_optimizer(model, cfg.optimizer)

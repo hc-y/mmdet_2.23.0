@@ -106,7 +106,9 @@ venv.bak/
 
 data/
 data
-.vscode
+# .vscode
+.vscode/settings.json
+# !/.vscode/launch.json
 .idea
 .DS_Store
 
@@ -122,3 +124,10 @@ work_dirs/
 *.pth
 *.py~
 *.sh~
+
+# trained model on argoverse-hd dataset
+/work_dirs*
+# /my_workspace/tmp*
+# !/my_workspace/tmp_ftsfus_fovs_v1v1/*.jpg
+# !/my_workspace/tmp_ResizeChipsV1v1/*.jpg
+# !/my_workspace/tmp_ResizeChipsV1v2/*.jpg

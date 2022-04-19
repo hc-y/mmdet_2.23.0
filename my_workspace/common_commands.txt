@@ -1,0 +1,76 @@
+
+
+on server 57; 
+output mAP60,70,80,90;
+train YOLOF on Argoverse-HD dataset;
+
+
+
+python tools/analysis_tools/analyze_logs.py plot_curve work_dirs/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_12301733/20211230_173326.log.json --keys loss_cls loss_bbox loss_centerness --legend loss_cls loss_bbox loss_centerness
+
+python tools/analysis_tools/analyze_logs.py plot_curve work_dirs/yolof_r50_c5_8x8_1x_coco_12311158/20211231_115802.log.json --keys loss_cls loss_bbox --legend loss_cls loss_bbox
+
+python tools/analysis_tools/analyze_logs.py plot_curve work_dirs/yolof_r50_c5_8x8_1x_argoverse_hd_12301721/20211230_172134.log.json --keys loss_cls loss_bbox --legend loss_cls loss_bbox
+
+
+
+### Log Analysis
+
+python tools/analysis_tools/analyze_logs.py plot_curve \
+    work_dirs_poc_archive/yolof_r50_c5_8x8_1x_argoverse_hd_poc_01082146/20220108_214652.log.json \
+    --keys loss_cls loss_bbox --legend loss_cls loss_bbox \
+    --out yolof_800_loss.jpg
+
+python tools/analysis_tools/analyze_logs.py plot_curve \
+    work_dirs_poc_archive/yolof_r50_c5_8x8_1x_argoverse_hd_poc_01082146/20220108_214652.log.json \
+    work_dirs_poc_archive/yolofv0v1_r50_c5_8x8_1x_argoverse_hd_poc_01092053/20220109_205306.log.json \
+    --keys loss_cls --legend yolof yolofv0v1 \
+    --out yolof_800_loss_cls.jpg
+
+python tools/analysis_tools/analyze_logs.py cal_train_time \
+    work_dirs_poc_archive/yolof_r50_c5_8x8_1x_argoverse_hd_poc_01082146/20220108_214652.log.json
+
+
+### Result Analysis
+
+
+
+
+
+### Test existing models
+python tools/test.py \
+    configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd_poc.py \
+    work_dirs_poc_archive/yolof_r50_c5_8x8_1x_argoverse_hd_poc_01071635/latest.pth \
+    --out yolof_r50_c5_8x8_1x_argoverse_hd_poc_01071635.pkl \
+    --eval bbox
+
+
+
+
+# single-gpu testing
+python tools/test.py \
+    ${CONFIG_FILE} \
+    ${CHECKPOINT_FILE} \
+    [--out ${RESULT_FILE}] \
+    [--eval ${EVAL_METRICS}] \
+    [--show]
+
+# multi-gpu testing
+bash tools/dist_test.sh \
+    ${CONFIG_FILE} \
+    ${CHECKPOINT_FILE} \
+    ${GPU_NUM} \
+    [--out ${RESULT_FILE}] \
+    [--eval ${EVAL_METRICS}]
+
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 bash tools/dist_test.sh \
+    configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd.py \
+    work_dirs/yolof_r50_c5_8x8_1x_argoverse_hd_12301721/latest.pth \
+    4 \
+    --eval bbox
+
+
+
+
+

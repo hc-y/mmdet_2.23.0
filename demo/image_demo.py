@@ -40,6 +40,11 @@ def main(args):
         result,
         palette=args.palette,
         score_thr=args.score_thr)
+    # visualize the results in a new window
+    # model.show_result(args.img, result)
+    # or save the visualization results to image files
+    # _out_file = args.img.rsplit('.', 1)[0]+'_result.jpg'
+    # model.show_result(args.img, result, out_file=_out_file)
 
 
 async def async_main(args):

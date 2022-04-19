@@ -101,6 +101,7 @@ def parse_args():
 
 
 def main():
+    # CUDA_VISIBLE_DEVICES=7
     args = parse_args()
 
     cfg = Config.fromfile(args.config)
@@ -123,9 +124,11 @@ def main():
         # update configs according to CLI args if args.work_dir is not None
         cfg.work_dir = args.work_dir
     elif cfg.get('work_dir', None) is None:
+        work_dir_timestamp = time.strftime('%m%d%H%M', time.localtime())  # hc-y_add1031:
+        cfg.work_dir = osp.join('./work_dirs', f'{osp.splitext(osp.basename(args.config))[0]}_{work_dir_timestamp}')  # hc-y_add1031:
         # use config filename as default work_dir if cfg.work_dir is None
-        cfg.work_dir = osp.join('./work_dirs',
-                                osp.splitext(osp.basename(args.config))[0])
+        # cfg.work_dir = osp.join('./work_dirs',
+        #                         osp.splitext(osp.basename(args.config))[0])
     if args.resume_from is not None:
         cfg.resume_from = args.resume_from
     cfg.auto_resume = args.auto_resume

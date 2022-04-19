@@ -627,7 +627,7 @@ class Pad:
                     results[key], self.size_divisor, pad_val=pad_val)
             results[key] = padded_img
         results['pad_shape'] = padded_img.shape
-        results['pad_fixed_size'] = self.size
+        results['pad_fixed_size'] = self.size  # hc-y_Q0105:什么含义?
         results['pad_size_divisor'] = self.size_divisor
 
     def _pad_masks(self, results):

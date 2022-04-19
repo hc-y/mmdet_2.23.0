@@ -217,7 +217,7 @@ class YOLOFHead(AnchorHead):
                 batch_pos_predicted_boxes,
                 batch_target_boxes,
                 batch_bbox_weights.float(),
-                avg_factor=num_total_samples)
+                avg_factor=num_total_samples)  # hc-y_note1221:这里的avg_factor使用的是torch.nonzero(assigned_gt_inds > 0, as_tuple=False).squeeze(-1)而不是pos_idx的数量;
 
         return dict(loss_cls=loss_cls, loss_bbox=loss_bbox)
 

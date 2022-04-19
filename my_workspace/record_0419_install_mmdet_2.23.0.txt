@@ -1,0 +1,160 @@
+
+
+
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ git branch
+* master
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ git checkout v2.23.0
+Note: checking out 'v2.23.0'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by performing another checkout.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -b with the checkout command again. Example:
+
+  git checkout -b <new-branch-name>
+
+HEAD is now at 3e26931... Release of v2.23.0
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ git branch
+* (HEAD detached at v2.23.0)
+  master
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ git checkout -b v2.23.0_0419
+Switched to a new branch 'v2.23.0_0419'
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ git branch
+  master
+* v2.23.0_0419
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$
+
+
+
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ pip install -r requirements/build.txt
+Requirement already satisfied: cython in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from -r requirements/build.txt (line 2)) (0.29.24)
+Requirement already satisfied: numpy in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from -r requirements/build.txt (line 3)) (1.21.2)
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ pip install -v -e .
+Using pip 21.2.4 from /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages/pip (python 3.9)
+Obtaining file:///media/hustget/win10%E6%96%87%E4%BB%B6%E7%9B%AE%E5%BD%95/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info
+    writing /tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'mmdet/VERSION'
+    warning: no files found matching 'mmdet/.mim/model-index.yml'
+    warning: no files found matching 'mmdet/.mim/demo/*/*'
+    warning: no files found matching '*.py' under directory 'mmdet/.mim/configs'
+    warning: no files found matching '*.yml' under directory 'mmdet/.mim/configs'
+    warning: no files found matching '*.sh' under directory 'mmdet/.mim/tools'
+    warning: no files found matching '*.py' under directory 'mmdet/.mim/tools'
+    adding license file 'LICENSE'
+    writing manifest file '/tmp/pip-pip-egg-info-grsa7ffo/mmdet.egg-info/SOURCES.txt'
+Requirement already satisfied: matplotlib in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from mmdet==2.23.0) (3.4.3)
+Requirement already satisfied: numpy in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from mmdet==2.23.0) (1.21.2)
+Requirement already satisfied: pycocotools in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from mmdet==2.23.0) (2.0.2)
+Requirement already satisfied: six in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from mmdet==2.23.0) (1.16.0)
+Requirement already satisfied: terminaltables in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from mmdet==2.23.0) (3.1.0)
+Requirement already satisfied: cycler>=0.10 in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from matplotlib->mmdet==2.23.0) (0.11.0)
+Requirement already satisfied: python-dateutil>=2.7 in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from matplotlib->mmdet==2.23.0) (2.8.2)
+Requirement already satisfied: pillow>=6.2.0 in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from matplotlib->mmdet==2.23.0) (8.4.0)
+Requirement already satisfied: kiwisolver>=1.0.1 in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from matplotlib->mmdet==2.23.0) (1.3.2)
+Requirement already satisfied: pyparsing>=2.2.1 in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from matplotlib->mmdet==2.23.0) (3.0.8)
+Requirement already satisfied: cython>=0.27.3 in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from pycocotools->mmdet==2.23.0) (0.29.24)
+Requirement already satisfied: setuptools>=18.0 in /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages (from pycocotools->mmdet==2.23.0) (58.0.4)
+Installing collected packages: mmdet
+  Running setup.py develop for mmdet
+    Running command /home/hustget/miniconda2/envs/hcy_mmlab1213/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/media/hustget/win10文件目录/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection/setup.py'"'"'; __file__='"'"'/media/hustget/win10文件目录/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    running develop
+    running egg_info
+    creating mmdet.egg-info
+    writing mmdet.egg-info/PKG-INFO
+    writing dependency_links to mmdet.egg-info/dependency_links.txt
+    writing requirements to mmdet.egg-info/requires.txt
+    writing top-level names to mmdet.egg-info/top_level.txt
+    writing manifest file 'mmdet.egg-info/SOURCES.txt'
+    reading manifest file 'mmdet.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'mmdet/VERSION'
+    warning: no files found matching 'mmdet/.mim/demo/*/*'
+    adding license file 'LICENSE'
+    writing manifest file 'mmdet.egg-info/SOURCES.txt'
+    /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages/torch/utils/cpp_extension.py:381: UserWarning: Attempted to use ninja as the BuildExtension backend but we could not find ninja.. Falling back to using the slow distutils backend.
+      warnings.warn(msg.format('we could not find ninja.'))
+    running build_ext
+    Creating /home/hustget/miniconda2/envs/hcy_mmlab1213/lib/python3.9/site-packages/mmdet.egg-link (link to .)
+    Adding mmdet 2.23.0 to easy-install.pth file
+
+    Installed /media/hustget/win10文件目录/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection
+Successfully installed mmdet-2.23.0
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23/mmdetection$ cd ..
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23$ mv mmdetection ../mmdet_2.23.0
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23$ cd ..
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform$ rm -rf mmdet_2.23
+
+
+
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git config --list
+core.repositoryformatversion=0
+core.filemode=false
+core.bare=false
+core.logallrefupdates=true
+remote.origin.url=https://github.com/open-mmlab/mmdetection.git
+remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+branch.master.remote=origin
+branch.master.merge=refs/heads/master
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git config user.name "hc-y_local1080ti"
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git config user.email "yhc2014com@gmail.com"
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git config --list
+core.repositoryformatversion=0
+core.filemode=false
+core.bare=false
+core.logallrefupdates=true
+remote.origin.url=https://github.com/open-mmlab/mmdetection.git
+remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+branch.master.remote=origin
+branch.master.merge=refs/heads/master
+user.name=hc-y_local1080ti
+user.email=yhc2014com@gmail.com
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ 
+
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git branch
+  master
+* v2.23.0_0419
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git checkout master
+Switched to branch 'master'
+Your branch is up-to-date with 'origin/master'.
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git branch -d v2.23.0_0419
+Deleted branch v2.23.0_0419 (was 3e26931).
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git branch
+* master
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git checkout -b master_0419
+Switched to a new branch 'master_0419'
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git branch
+  master
+* master_0419
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$
+
+
+
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git remote add origin git@github.com:hc-y/mmdet_2.23.0.git
+fatal: remote origin already exists.
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git remote rm origin
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git remote add origin git@github.com:hc-y/mmdet_2.23.0.git
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$ git push -u origin master_0419
+Counting objects: 23597, done.
+Delta compression using up to 16 threads.
+Compressing objects: 100% (6942/6942), done.
+Writing objects: 100% (23597/23597), 35.40 MiB | 1.39 MiB/s, done.
+Total 23597 (delta 16540), reused 23597 (delta 16540)
+remote: Resolving deltas: 100% (16540/16540), done.
+To git@github.com:hc-y/mmdet_2.23.0.git
+ * [new branch]      master_0419 -> master_0419
+Branch master_0419 set up to track remote branch master_0419 from origin.
+(hcy_mmlab1213) hustget@hustget-System-Product-Name:~/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/mmdet_2.23.0$
+
+

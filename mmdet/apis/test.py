@@ -24,10 +24,14 @@ def single_gpu_test(model,
     dataset = data_loader.dataset
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
+    flag_show_result = 'Default'
+    flag_show_result = 'labels_pred'
     for i, data in enumerate(data_loader):
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
 
+        if flag_show_result == 'labels_pred':
+            iter_idx = i  # hc-y_add0121:
         batch_size = len(result)
         if show or out_dir:
             if batch_size == 1 and isinstance(data['img'][0], torch.Tensor):
@@ -45,20 +49,45 @@ def single_gpu_test(model,
                 ori_h, ori_w = img_meta['ori_shape'][:-1]
                 img_show = mmcv.imresize(img_show, (ori_w, ori_h))
 
-                if out_dir:
-                    out_file = osp.join(out_dir, img_meta['ori_filename'])
+                if flag_show_result == 'labels_pred':
+                    if out_dir:
+                        # out_file_labels = osp.join(out_dir, f'val_iter{iter_idx}_bs{i}_labels.jpg')  # hc-y_add0121:
+                        out_file_pred = osp.join(out_dir, f'val_iter{iter_idx}_bs{i}_pred.jpg')  # hc-y_add0121:
+                    else:
+                        out_file = None
+                    # model.module.show_result(
+                    #     img_show,
+                    #     gt_bboxes,  # TODO:
+                    #     show=show,
+                    #     bbox_color=PALETTE,
+                    #     text_color=PALETTE,
+                    #     mask_color=PALETTE,
+                    #     out_file=out_file_labels,
+                    #     score_thr=show_score_thr)
+                    model.module.show_result(
+                        img_show,
+                        result[i],
+                        bbox_color=PALETTE,
+                        text_color=PALETTE,
+                        mask_color=PALETTE,
+                        show=show,
+                        out_file=out_file_pred,
+                        score_thr=show_score_thr)
                 else:
-                    out_file = None
+                    if out_dir:
+                        out_file = osp.join(out_dir, img_meta['ori_filename'])
+                    else:
+                        out_file = None
 
-                model.module.show_result(
-                    img_show,
-                    result[i],
-                    bbox_color=PALETTE,
-                    text_color=PALETTE,
-                    mask_color=PALETTE,
-                    show=show,
-                    out_file=out_file,
-                    score_thr=show_score_thr)
+                    model.module.show_result(
+                        img_show,
+                        result[i],
+                        bbox_color=PALETTE,
+                        text_color=PALETTE,
+                        mask_color=PALETTE,
+                        show=show,
+                        out_file=out_file,
+                        score_thr=show_score_thr)
 
         # encode mask results
         if isinstance(result[0], tuple):

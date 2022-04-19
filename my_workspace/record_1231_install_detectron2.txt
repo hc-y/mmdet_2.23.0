@@ -1,0 +1,198 @@
+
+(mmlab) yuhangcheng@tg-platform-iaaas005:/mnt/data1/yuhangcheng/yhc_workspace$ conda create -n detectron2 python=3
+Collecting package metadata (current_repodata.json): done
+Solving environment: done
+
+
+==> WARNING: A newer version of conda exists. <==
+  current version: 4.10.1
+  latest version: 4.11.0
+
+Please update conda by running
+
+    $ conda update -n base -c defaults conda
+
+
+
+## Package Plan ##
+
+  environment location: /home/yuhangcheng/anaconda3/envs/detectron2
+
+  added / updated specs:
+    - python=3
+
+
+The following packages will be downloaded:
+
+    package                    |            build
+    ---------------------------|-----------------
+    _libgcc_mutex-0.1          |             main           3 KB
+    _openmp_mutex-4.5          |            1_gnu          22 KB
+    certifi-2020.6.20          |     pyhd3eb1b0_3         155 KB
+    ncurses-6.3                |       h7f8727e_2         782 KB
+    pip-21.2.4                 |  py310h06a4308_0         1.8 MB
+    python-3.10.0              |       h12debd9_4        23.5 MB
+    setuptools-58.0.4          |  py310h06a4308_0         782 KB
+    sqlite-3.37.0              |       hc218d9a_0         999 KB
+    zlib-1.2.11                |       h7f8727e_4         108 KB
+    ------------------------------------------------------------
+                                           Total:        28.2 MB
+
+The following NEW packages will be INSTALLED:
+
+  _libgcc_mutex      pkgs/main/linux-64::_libgcc_mutex-0.1-main
+  _openmp_mutex      pkgs/main/linux-64::_openmp_mutex-4.5-1_gnu
+  bzip2              pkgs/main/linux-64::bzip2-1.0.8-h7b6447c_0
+  ca-certificates    pkgs/main/linux-64::ca-certificates-2021.10.26-h06a4308_2
+  certifi            pkgs/main/noarch::certifi-2020.6.20-pyhd3eb1b0_3
+  ld_impl_linux-64   pkgs/main/linux-64::ld_impl_linux-64-2.35.1-h7274673_9
+  libffi             pkgs/main/linux-64::libffi-3.3-he6710b0_2
+  libgcc-ng          pkgs/main/linux-64::libgcc-ng-9.3.0-h5101ec6_17
+  libgomp            pkgs/main/linux-64::libgomp-9.3.0-h5101ec6_17
+  libstdcxx-ng       pkgs/main/linux-64::libstdcxx-ng-9.3.0-hd4cf53a_17
+  libuuid            pkgs/main/linux-64::libuuid-1.0.3-h7f8727e_2
+  ncurses            pkgs/main/linux-64::ncurses-6.3-h7f8727e_2
+  openssl            pkgs/main/linux-64::openssl-1.1.1l-h7f8727e_0
+  pip                pkgs/main/linux-64::pip-21.2.4-py310h06a4308_0
+  python             pkgs/main/linux-64::python-3.10.0-h12debd9_4
+  readline           pkgs/main/linux-64::readline-8.1-h27cfd23_0
+  setuptools         pkgs/main/linux-64::setuptools-58.0.4-py310h06a4308_0
+  sqlite             pkgs/main/linux-64::sqlite-3.37.0-hc218d9a_0
+  tk                 pkgs/main/linux-64::tk-8.6.11-h1ccaba5_0
+  tzdata             pkgs/main/noarch::tzdata-2021e-hda174b7_0
+  wheel              pkgs/main/noarch::wheel-0.37.0-pyhd3eb1b0_1
+  xz                 pkgs/main/linux-64::xz-5.2.5-h7b6447c_0
+  zlib               pkgs/main/linux-64::zlib-1.2.11-h7f8727e_4
+
+
+Proceed ([y]/n)? y
+
+
+Downloading and Extracting Packages
+_libgcc_mutex-0.1    | 3 KB      | ################################################################################################################## | 100% 
+pip-21.2.4           | 1.8 MB    | ################################################################################################################## | 100% 
+ncurses-6.3          | 782 KB    | ################################################################################################################## | 100% 
+zlib-1.2.11          | 108 KB    | ################################################################################################################## | 100% 
+certifi-2020.6.20    | 155 KB    | ################################################################################################################## | 100% 
+python-3.10.0        | 23.5 MB   | ################################################################################################################## | 100% 
+_openmp_mutex-4.5    | 22 KB     | ################################################################################################################## | 100% 
+setuptools-58.0.4    | 782 KB    | ################################################################################################################## | 100% 
+sqlite-3.37.0        | 999 KB    | ################################################################################################################## | 100% 
+Preparing transaction: done
+Verifying transaction: done
+Executing transaction: done
+#
+# To activate this environment, use
+#
+#     $ conda activate detectron2
+#
+# To deactivate an active environment, use
+#
+#     $ conda deactivate
+
+(mmlab) yuhangcheng@tg-platform-iaaas005:/mnt/data1/yuhangcheng/yhc_workspace$ conda activate detectron2
+(detectron2) yuhangcheng@tg-platform-iaaas005:/mnt/data1/yuhangcheng/yhc_workspace$ 
+
+(detectron2) yuhangcheng@tg-platform-iaaas005:/mnt/data1/yuhangcheng/yhc_workspace$ conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
+Collecting package metadata (current_repodata.json): done
+Solving environment: done
+
+
+==> WARNING: A newer version of conda exists. <==
+  current version: 4.10.1
+  latest version: 4.11.0
+
+Please update conda by running
+
+    $ conda update -n base -c defaults conda
+
+
+
+## Package Plan ##
+
+  environment location: /home/yuhangcheng/anaconda3/envs/detectron2
+
+  added / updated specs:
+    - cudatoolkit=10.2
+    - pytorch
+    - torchvision
+
+
+The following packages will be downloaded:
+
+    package                    |            build
+    ---------------------------|-----------------
+    intel-openmp-2021.4.0      |    h06a4308_3561         4.2 MB
+    openh264-2.1.1             |       h4ff587b_0         711 KB
+    pytorch-1.10.1             |py3.9_cuda10.2_cudnn7.6.5_0       768.4 MB  pytorch
+    ------------------------------------------------------------
+                                           Total:       773.2 MB
+
+The following NEW packages will be INSTALLED:
+
+  blas               pkgs/main/linux-64::blas-1.0-mkl
+  cudatoolkit        pkgs/main/linux-64::cudatoolkit-10.2.89-hfd86e86_1
+  ffmpeg             pytorch/linux-64::ffmpeg-4.3-hf484d3e_0
+  freetype           pkgs/main/linux-64::freetype-2.11.0-h70c0345_0
+  giflib             pkgs/main/linux-64::giflib-5.2.1-h7b6447c_0
+  gmp                pkgs/main/linux-64::gmp-6.2.1-h2531618_2
+  gnutls             pkgs/main/linux-64::gnutls-3.6.15-he1e5248_0
+  intel-openmp       pkgs/main/linux-64::intel-openmp-2021.4.0-h06a4308_3561
+  jpeg               pkgs/main/linux-64::jpeg-9d-h7f8727e_0
+  lame               pkgs/main/linux-64::lame-3.100-h7b6447c_0
+  lcms2              pkgs/main/linux-64::lcms2-2.12-h3be6417_0
+  libiconv           pkgs/main/linux-64::libiconv-1.15-h63c8f33_5
+  libidn2            pkgs/main/linux-64::libidn2-2.3.2-h7f8727e_0
+  libpng             pkgs/main/linux-64::libpng-1.6.37-hbc83047_0
+  libtasn1           pkgs/main/linux-64::libtasn1-4.16.0-h27cfd23_0
+  libtiff            pkgs/main/linux-64::libtiff-4.2.0-h85742a9_0
+  libunistring       pkgs/main/linux-64::libunistring-0.9.10-h27cfd23_0
+  libuv              pkgs/main/linux-64::libuv-1.40.0-h7b6447c_0
+  libwebp            pkgs/main/linux-64::libwebp-1.2.0-h89dd481_0
+  libwebp-base       pkgs/main/linux-64::libwebp-base-1.2.0-h27cfd23_0
+  lz4-c              pkgs/main/linux-64::lz4-c-1.9.3-h295c915_1
+  mkl                pkgs/main/linux-64::mkl-2021.4.0-h06a4308_640
+  mkl-service        pkgs/main/linux-64::mkl-service-2.4.0-py39h7f8727e_0
+  mkl_fft            pkgs/main/linux-64::mkl_fft-1.3.1-py39hd3c417c_0
+  mkl_random         pkgs/main/linux-64::mkl_random-1.2.2-py39h51133e4_0
+  nettle             pkgs/main/linux-64::nettle-3.7.3-hbbd107a_1
+  numpy              pkgs/main/linux-64::numpy-1.21.2-py39h20f2e39_0
+  numpy-base         pkgs/main/linux-64::numpy-base-1.21.2-py39h79a1101_0
+  olefile            pkgs/main/noarch::olefile-0.46-pyhd3eb1b0_0
+  openh264           pkgs/main/linux-64::openh264-2.1.1-h4ff587b_0
+  pillow             pkgs/main/linux-64::pillow-8.4.0-py39h5aabda8_0
+  pytorch            pytorch/linux-64::pytorch-1.10.1-py3.9_cuda10.2_cudnn7.6.5_0
+  pytorch-mutex      pytorch/noarch::pytorch-mutex-1.0-cuda
+  six                pkgs/main/noarch::six-1.16.0-pyhd3eb1b0_0
+  torchvision        pytorch/linux-64::torchvision-0.11.2-py39_cu102
+  typing_extensions  pkgs/main/noarch::typing_extensions-3.10.0.2-pyh06a4308_0
+  zstd               pkgs/main/linux-64::zstd-1.4.9-haebb681_0
+
+The following packages will be UPDATED:
+
+  certifi            pkgs/main/noarch::certifi-2020.6.20-p~ --> pkgs/main/linux-64::certifi-2021.10.8-py39h06a4308_0
+
+The following packages will be DOWNGRADED:
+
+  pip                                21.2.4-py310h06a4308_0 --> 21.2.4-py39h06a4308_0
+  python                                  3.10.0-h12debd9_4 --> 3.9.7-h12debd9_1
+  setuptools                         58.0.4-py310h06a4308_0 --> 58.0.4-py39h06a4308_0
+
+
+Proceed ([y]/n)? y
+
+
+Downloading and Extracting Packages
+intel-openmp-2021.4. | 4.2 MB    | ###################################################################################### | 100% 
+openh264-2.1.1       | 711 KB    | ###################################################################################### | 100% 
+pytorch-1.10.1       | 768.4 MB  | ###################################################################################### | 100% 
+Preparing transaction: done
+Verifying transaction: done
+Executing transaction: done
+(detectron2) yuhangcheng@tg-platform-iaaas005:/mnt/data1/yuhangcheng/yhc_workspace$
+
+
+
+
+
+
