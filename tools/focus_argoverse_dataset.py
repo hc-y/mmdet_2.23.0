@@ -1,36 +1,134 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-@file    : densitypeakcluster.py
+@file    : focus_argoverse_dataset.py
 @path_to_file:
-@date    : 2022/03/26
+@date    : 2022/04/20 20:56
 @contact :
-@brief   : 基于 DensityPeakCluster 密度最大值聚类算法,为 Argoverse-HD 数据集中的每张图片生成 small objects 的聚集区域;
+@brief   : 为 Argoverse-HD 数据集中的每张图片生成 small objects 的聚集区域;
 @intro   :
 @relatedfile:
     
 
 @annotation: hc-y_note:, hc-y_Q:, hc-y_highlight:, hc-y_add:, hc-y_modify:, c-y_write:,
 """
-import os
-import numpy as np
 import torch
+import glob
+import sys
 from pathlib import Path
-# from mmdet.core import bbox_cxcywh_to_xyxy, bbox_overlaps
+
+# FILE = Path(__file__).resolve()
+# ROOT = FILE.parents[1]  # MMDet root directory
+# if str(ROOT) not in sys.path:
+#     sys.path.append(str(ROOT))  # add ROOT to PATH
+
+import json
+import shutil
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import math
+from tools.general import xyxy2xywhn, xywh2xyxy, increment_path
+from tools.plots import plot_images_v1
+from mmdet.core import bbox_cxcywh_to_xyxy
+# from mmdet.core.bbox.iou_calculators import fp16_clamp
 
 
-def bbox_cxcywh_to_xyxy(bbox):
-    """Convert bbox coordinates from (cx, cy, w, h) to (x1, y1, x2, y2).
-
-    Args:
-        bbox (Tensor): Shape (n, 4) for bboxes.
-
-    Returns:
-        Tensor: Converted bboxes.
+class DashedImageDraw(ImageDraw.ImageDraw):
+    """hc-y_add0422: copied from https://stackoverflow.com/a/65893631
+    PIL library (specifically PIL.ImageDraw.ImageDraw) doesn't provide 
+    the functionality to draw dashed lines, so the class DashedImageDraw 
+    (which extends PIL.ImageDraw.ImageDraw) is wrote, which has functionality 
+    to draw dashed line and dashed rectangle.
     """
-    cx, cy, w, h = bbox.split((1, 1, 1, 1), dim=-1)
-    bbox_new = [(cx - 0.5 * w), (cy - 0.5 * h), (cx + 0.5 * w), (cy + 0.5 * h)]
-    return torch.cat(bbox_new, dim=-1)
+    def thick_line(self, xy, direction, fill=None, width=0):
+        #xy – Sequence of 2-tuples like [(x, y), (x, y), ...]
+        #direction – Sequence of 2-tuples like [(x, y), (x, y), ...]
+        if xy[0] != xy[1]:
+            self.line(xy, fill = fill, width = width)
+        else:
+            x1, y1 = xy[0]            
+            dx1, dy1 = direction[0]
+            dx2, dy2 = direction[1]
+            if dy2 - dy1 < 0:
+                x1 -= 1
+            if dx2 - dx1 < 0:
+                y1 -= 1
+            if dy2 - dy1 != 0:
+                if dx2 - dx1 != 0:
+                    k = - (dx2 - dx1)/(dy2 - dy1)
+                    a = 1/math.sqrt(1 + k**2)
+                    b = (width*a - 1) /2
+                else:
+                    k = 0
+                    b = (width - 1)/2
+                x3 = x1 - math.floor(b)
+                y3 = y1 - int(k*b)
+                x4 = x1 + math.ceil(b)
+                y4 = y1 + int(k*b)
+            else:
+                x3 = x1
+                y3 = y1 - math.floor((width - 1)/2)
+                x4 = x1
+                y4 = y1 + math.ceil((width - 1)/2)
+            self.line([(x3, y3), (x4, y4)], fill = fill, width = 1)
+        return   
+        
+    def dashed_line(self, xy, dash=(2,2), fill=None, width=0):
+        #xy – Sequence of 2-tuples like [(x, y), (x, y), ...]
+        for i in range(len(xy) - 1):
+            x1, y1 = xy[i]
+            x2, y2 = xy[i + 1]
+            x_length = x2 - x1
+            y_length = y2 - y1
+            length = math.sqrt(x_length**2 + y_length**2)
+            dash_enabled = True
+            postion = 0
+            while postion <= length:
+                for dash_step in dash:
+                    if postion > length:
+                        break
+                    if dash_enabled:
+                        start = postion/length
+                        end = min((postion + dash_step - 1) / length, 1)
+                        self.thick_line([(round(x1 + start*x_length),
+                                          round(y1 + start*y_length)),
+                                         (round(x1 + end*x_length),
+                                          round(y1 + end*y_length))],
+                                        xy, fill, width)
+                    dash_enabled = not dash_enabled
+                    postion += dash_step
+        return
+
+    def dashed_rectangle(self, xy, dash=(2,2), outline=None, width=0):
+        #xy - Sequence of [(x1, y1), (x2, y2)] where (x1, y1) is top left corner and (x2, y2) is bottom right corner
+        x1, y1, x2, y2 = xy
+        halfwidth1 = math.floor((width - 1)/2)
+        halfwidth2 = math.ceil((width - 1)/2)
+        min_dash_gap = min(dash[1::2])
+        end_change1 = halfwidth1 + min_dash_gap + 1
+        end_change2 = halfwidth2 + min_dash_gap + 1
+        odd_width_change = (width - 1)%2        
+        self.dashed_line([(x1 - halfwidth1, y1), (x2 - end_change1, y1)],
+                         dash, outline, width)       
+        self.dashed_line([(x2, y1 - halfwidth1), (x2, y2 - end_change1)],
+                         dash, outline, width)
+        self.dashed_line([(x2 + halfwidth2, y2 + odd_width_change),
+                          (x1 + end_change2, y2 + odd_width_change)],
+                         dash, outline, width)
+        self.dashed_line([(x1 + odd_width_change, y2 + halfwidth2),
+                          (x1 + odd_width_change, y1 + end_change2)],
+                         dash, outline, width)
+        return
+
+
+def fp16_clamp(x, min=None, max=None):
+    "hc-y_modify0420:copied from mmdet/core/bbox/iou_calculators/iou2d_calculator.py;"
+    if not x.is_cuda and x.dtype == torch.float16:
+        # clamp for cpu float16, tensor fp16 has no clamp implementation
+        return x.float().clamp(min, max).half()
+
+    return x.clamp(min, max)
+
 
 def bbox_overlaps_ext(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
     """Calculate overlap between two set of bboxes.
@@ -221,7 +319,7 @@ def bbox_overlaps_ext(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
             bboxes2_ctr_xy = (bboxes2[..., :2] + bboxes2[..., 2:]) / 2
             ctr_xy_dist = torch.pow(bboxes1_ctr_xy[..., :, None, :] - bboxes2_ctr_xy[..., None, :, :], 2.).sum(dim=-1)
             # ctr_xy_dist_ = torch.cdist(bboxes1_ctr_xy, bboxes2_ctr_xy, p=2.)**2  # ((ctr_xy_dist_ - ctr_xy_dist) > 0.0000001).sum()
-
+            
             enclosed_lt = torch.min(bboxes1[..., :, None, :2],
                                     bboxes2[..., None, :, :2])
             enclosed_rb = torch.max(bboxes1[..., :, None, 2:],
@@ -249,12 +347,6 @@ def bbox_overlaps_ext(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
     gious = ious - (enclose_area - union) / enclose_area
     return gious
 
-def fp16_clamp(x, min=None, max=None):
-    if not x.is_cuda and x.dtype == torch.float16:
-        # clamp for cpu float16, tensor fp16 has no clamp implementation
-        return x.float().clamp(min, max).half()
-
-    return x.clamp(min, max)
 
 def cluster_gt_bboxes(p_bboxes):
     """hc-y_write0326:基于 DensityPeakCluster 生成 small objects 的聚集区域;
@@ -268,7 +360,7 @@ def cluster_gt_bboxes(p_bboxes):
     """
     num_p = len(p_bboxes)
     # Step 1. compute dist_obj (distance) between all gt bboxes, and adjust the value interval from [-1,1] to [0,2] via (1. - giou);
-    dist_obj_mode = 'giou'
+    dist_obj_mode = 'EuclideanDist'
     if dist_obj_mode in ['giou', 'diou']:
         dist_obj = 1. - bbox_overlaps_ext(p_bboxes, p_bboxes, mode=dist_obj_mode, is_aligned=False, eps=1e-7)
     elif dist_obj_mode == 'diouv':
@@ -279,7 +371,7 @@ def cluster_gt_bboxes(p_bboxes):
         bboxes1_ctr_xy = (p_bboxes[..., :2] + p_bboxes[..., 2:]) / 2
         ctr_xy_dist = torch.pow(bboxes1_ctr_xy[..., :, None, :] - bboxes1_ctr_xy[..., None, :, :], 2.).sum(dim=-1)
         dist_obj = ctr_xy_dist
-    
+
     # Step 2. select the \k smallest dist_obj as candidates, and compute the mean and std, set mean + std * 0.8 as the dist_obj threshold (cuttoff_distance);
     selectable_k = int(num_p * 2)  # 超参数, 待调节;
     triu_inds = torch.triu_indices(num_p, num_p, 1)
@@ -310,134 +402,155 @@ def cluster_gt_bboxes(p_bboxes):
     cluster_label[cluster_1st, 1] = 1  # 簇中心
     # Step 6. cluster other gt boxes to the cluster center;
     # 方式一: 依据局部密度 $rho$ 从高到低地给各个点划分簇, 归属于距离最近的高密度点所在的簇;
-    flag_cluster = 'flag_cluster_v1'
-    if flag_cluster == 'flag_cluster_v1':
-        p_rho_sorted_ind = p_rho.sort(descending=True)[1]
-        p_rho_clustered_ind = [] + cluster_1st
-        for _sorted_ind in p_rho_sorted_ind:
-            if cluster_label[_sorted_ind, 0] == 0:
-                _min_dist_obj, _argmin_dist_obj = dist_obj[_sorted_ind, p_rho_clustered_ind].min(dim=0)
-                # 对于除 traffic_light 之外的其它类别, 略; 对于 traffic_light 类别, 略; 对于不区分类别, giou:*1.0, diouv:*1.0;
-                if _min_dist_obj <= candidate_dist_obj_thr * 3.2:  # 超参数, 待调节; 该参数会影响到 Step 6 中各个点是否会被划分入簇;
-                    cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]
-                # cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]  # 不加限制地对所有点都划分入簇, tag:all
-                p_rho_clustered_ind.append(_sorted_ind.item())
-    elif flag_cluster == 'flag_cluster_v2':
-        # 方式二: 由簇中心向四周发散, 依据离簇中心的距离从近到远地给各个点划分簇;
-        _ind_rest_1 = torch.nonzero(cluster_label[:, 0] == 0, as_tuple=False).squeeze()
-        if _ind_rest_1.numel() > 0:
-            _min_dist_obj, _argmin_dist_obj = dist_obj[_ind_rest_1][:, cluster_1st].min(dim=1)
-            _cluster_2nd_mask = _min_dist_obj < candidate_dist_obj_thr * 1.0  # 超参数, 待调节;
-            cluster_label[_ind_rest_1[_cluster_2nd_mask], 0] = cluster_label[cluster_1st, 0][_argmin_dist_obj[_cluster_2nd_mask]]
-            cluster_label[_ind_rest_1[_cluster_2nd_mask], 1] = 2  # 归属于距离最近的cluster_1st点所在的簇
-            cluster_2nd = _ind_rest_1[_cluster_2nd_mask]
-            _ind_rest_2 = _ind_rest_1[~_cluster_2nd_mask]
+    p_rho_sorted_ind = p_rho.sort(descending=True)[1]
+    p_rho_clustered_ind = [] + cluster_1st  # sid23_fid213_cls_euc_3cluster.jpg
+    for _sorted_ind in p_rho_sorted_ind:
+        if cluster_label[_sorted_ind, 0] == 0:
+            _min_dist_obj, _argmin_dist_obj = dist_obj[_sorted_ind, p_rho_clustered_ind].min(dim=0)
+            # 对于除 traffic_light 之外的其它类别, giou:*0.95, diouv:*1.05; 对于 traffic_light 类别, giou:*0.95, diouv:*0.95; 对于不区分类别, giou:*1.0, diouv:*1.0;
+            if _min_dist_obj <= candidate_dist_obj_thr * 3.2:  # 超参数, 待调节; 该参数会影响到 Step 6 中各个点是否会被划分入簇;
+                cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]
+            # cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]  # 不加限制地对所有点都划分入簇, tag:all
+            p_rho_clustered_ind.append(_sorted_ind.item())
 
-            if cluster_2nd.numel() > 0 and _ind_rest_2.numel() > 0:
-                _min_dist_obj, _argmin_dist_obj = dist_obj[_ind_rest_2][:, cluster_2nd].min(dim=1)
-                _cluster_3rd_mask = _min_dist_obj < candidate_dist_obj_thr * 1.0  # 超参数, 待调节;
-                cluster_label[_ind_rest_2[_cluster_3rd_mask], 0] = cluster_label[cluster_2nd, 0][_argmin_dist_obj[_cluster_3rd_mask]]
-                cluster_label[_ind_rest_2[_cluster_3rd_mask], 1] = 3  # 归属于距离最近的cluster_2nd点所在的簇
-                cluster_3rd = _ind_rest_2[_cluster_3rd_mask]
-                _ind_rest_3 = _ind_rest_2[~_cluster_3rd_mask]
-
-                if cluster_3rd.numel() > 0 and _ind_rest_3.numel() > 0:
-                    _min_dist_obj, _argmin_dist_obj = dist_obj[_ind_rest_3][:, cluster_3rd].min(dim=1)
-                    _cluster_4th_mask = _min_dist_obj < candidate_dist_obj_thr * 1.0  # 超参数, 待调节;
-                    cluster_label[_ind_rest_3[_cluster_4th_mask], 0] = cluster_label[cluster_3rd, 0][_argmin_dist_obj[_cluster_4th_mask]]
-                    cluster_label[_ind_rest_3[_cluster_4th_mask], 1] = 4  # 归属于距离最近的cluster_3rd点所在的簇
-                    # cluster_4th = _ind_rest_3[_cluster_4th_mask]
-                    # _ind_rest_4 = _ind_rest_3[~_cluster_4th_mask]
     return cluster_label
 
-def img2label_paths(img_paths):
-    # Define label paths as a function of image paths
-    return [x.replace('.jpg', '.txt') for x in img_paths]  # hc-y_note1118:sb.join(['1','2', '3'])
 
-def main():
-    img_paths = ['./my_workspace/demo-test/ring_front_center_315984811296183496.jpg', ]
-    label_files = img2label_paths(img_paths)
+def inject_chips_params_to_anns(json_dir):
+    """hc-y_write0421:读取 train.json, val.json, 基于 gt_bboxes 为每张图片计算 chips 参数; 并可视化画框显示效果;
 
-    # 读取 img_label 内容
-    for lb_file in label_files:
-        with open(lb_file, 'r') as f:
-            l = [x.split() for x in f.read().strip().splitlines() if len(x)]
-            l = np.array(l, dtype=np.float32)
-        nl = len(l)
-        if nl:
-            assert l.shape[1] == 5, f'labels require 5 columns, {l.shape[1]} columns detected'
-            assert (l >= 0).all(), f'negative label values {l[l < 0]}'
-            assert (l[:, 1:] <= 1).all(), f'non-normalized or out of bounds coordinates {l[:, 1:][l[:, 1:] > 1]}'
-            l = np.unique(l, axis=0)  # remove duplicate rows
-        else:  # label empty
-            l = np.zeros((0, 5), dtype=np.float32)
+    Args:
+        json_dir (class::Path): ;
+
+    Returns:
+        xxx;
+    """
+    if "test-meta.json" in (json_dir.stem + '.json'):
+        return
+    last_frame_time_type = ['t-0', 't-1', 't-2', 't-3', 't-4']
+    num_lft_type = len(last_frame_time_type)
+    with open(json_dir, 'r') as f:
+        a = json.load(f)
     
+    # 区分开 frame 隶属于不同的 sequences
+    imgs_per_seqs = [[] for _ in range(len(a['seq_dirs']))]
+    sid_list = []
+    for _img in a['images']:
+        if _img['sid'] not in sid_list:
+            sid_list.append(_img['sid'])
+        imgs_per_seqs[sid_list.index(_img['sid'])].append(_img)
 
     cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
-    _ind_cls1_l = np.where(l[:, 0] == 6)[0]  # traffic_light
-    _ind_cls2_l = np.where(l[:, 0] != 6)[0]  # 除 traffic_light 之外的其它类别
+    path_to_tmp = json_dir.parents[1] / 'imgs_vis_tmp'
+    if not path_to_tmp.exists():
+        path_to_tmp.mkdir(parents=True, exist_ok=True)
+    # imgs_new = []
+    for imgs_per_seq in imgs_per_seqs:
+        imgs_per_seq.sort(key=lambda x:x['fid'])  # 依据 _img['fid'] 从小到大对 frame 排序
+        for _img_idx, _img in enumerate(imgs_per_seq):
+            anns_per_img = [_ann for _ann in a['annotations'] if _ann['image_id'] == _img['id']]
+            if len(anns_per_img) == 0:
+                continue
+            # The COCO box format is [top left x, top left y, width, height]
+            _gt_anns = np.array([[_val['category_id'],] + _val['bbox'] for _val in anns_per_img], dtype=np.float64)
+            _gt_anns[:, 1:3] += _gt_anns[:, 3:] / 2  # xy top-left corner to center
+            _gt_anns[:, [1, 3]] /= _img['width']  # normalize x
+            _gt_anns[:, [2, 4]] /= _img['height']  # normalize y
+            # _ind_cls1_l = np.where(_gt_anns[:, 0] == 6)[0]  # traffic_light
+            # _ind_cls2_l = np.where(_gt_anns[:, 0] != 6)[0]  # 除 traffic_light 之外的其它类别
 
-    path_to_tmp = Path('./my_workspace/demo-test/')
-    # from tools.plots import plot_images_v1
-    # plot_images_v1(None, np.concatenate((np.zeros_like(l[l_ind_cls_2][:,0:1]), l[l_ind_cls_2]), -1), (str(path_to_tmp / f'ring_front_center_315984811296183496.jpg'), ), path_to_tmp / f'img_cls2.jpg', cls_names, None, 'original_image')
-    # import cv2
-    # img_cls2 = cv2.imread(str(path_to_tmp / f'img_cls2.jpg'))[:,:,::-1]  # HWC BGR  --> HWC RGB
-    from PIL import Image, ImageDraw, ImageFont
-    # img_cls2 = Image.fromarray(img_cls2)
-    # img_cls2 = Image.open(str(path_to_tmp / f'img_cls2.jpg'))
-    img_cls2 = Image.open(str(path_to_tmp / f'val_batch19_labels.jpg'))
-    img_cls_2_draw = ImageDraw.Draw(img_cls2)
-    img_wh = img_cls2.size
+            # if _img['sid'] != 18:
+            #     break
 
-    if False:
-        box = [1920*0.2, 1200*0.2, 1920*0.8, 1200*0.8]
-        # txt_font = ImageFont.truetype('C:\\Users\\YHC\\AppData\\Roaming\\Ultralytics\\Arial.ttf', 20)
-        txt_font = ImageFont.truetype('/root/.config/Ultralytics/Arial.ttf', 20)
-        txt_w, txt_h = 40, 30  # 94, 35
-        txt_outside = box[0] - txt_h >= 0  # label fits outside box
-        img_cls_2_draw.rectangle([box[0],
-                            box[1] - txt_h if txt_outside else box[1],
-                            box[0] + txt_w + 1,
-                            box[1] + 1 if txt_outside else box[1] + txt_h + 1], fill=(0, 0, 0))
-        img_cls_2_draw.text((box[0], box[1] - txt_h if txt_outside else box[1]), 'chip', fill=(255, 255, 255), font=txt_font)
-        img_cls_2_draw.rectangle(box, fill=None, outline=(255, 255, 255), width=2)
-        img_cls_2_draw.point(((box[0] + box[2])/2, (box[1] + box[3])/2), fill=(255, 0, 0))
-        img_cls_2_draw.chord([box[0]-5, box[1]-5, box[0]+5, box[1]+5], 0, 360, fill=(255, 0, 0))
+            _chips_cf = []
+            _gt_bboxes_area = _gt_anns[:, 3] * _gt_anns[:, 4]
+            _sm_obj_mask = _gt_bboxes_area < 0.01  # 中小目标的面积阈值, 根据数据集及应用场景而设定, 高于该值的目标无需crop放大;
+            _gt_bboxes = bbox_cxcywh_to_xyxy(torch.from_numpy(_gt_anns[_sm_obj_mask][:, 1:]))
+            cluster_label = cluster_gt_bboxes(_gt_bboxes)
+            path_to_img = json_dir.parents[1] / f"images_ann/{a['seq_dirs'][_img['sid']]}/{_img['name']}"
+            img_src = Image.open(str(path_to_img))
+            img_src_draw = DashedImageDraw(img_src)
+            _cluster_color = [(0,0,255), (0,128,0), (128,0,128)]  # blue, green, purple
+            for _cluster_id in [1, 2, 3]:
+                _ind_cluster = torch.nonzero(cluster_label[:, 0] == _cluster_id, as_tuple=False).squeeze()
+                # if _ind_cluster.numel() <= 3:  # 丢弃所包含 objects 数量少于等于 3 的簇
+                if _ind_cluster.numel() < 1:
+                    break
+                elif _ind_cluster.numel() == 1:
+                    _chip_ltrb = _gt_bboxes[_ind_cluster, :].clone()
+                    _ind_cluster = [_ind_cluster, ]
+                else:
+                    _chip_ltrb = torch.cat((_gt_bboxes[_ind_cluster, :2].min(dim=0)[0], _gt_bboxes[_ind_cluster, 2:].max(dim=0)[0]),-1)
+                _chip_ltrb[[0, 2]] *= _img['width']
+                _chip_ltrb[[1, 3]] *= _img['height']
+                img_src_draw.dashed_rectangle(_chip_ltrb.cpu().numpy(), dash=(8,8), outline=_cluster_color[_cluster_id-1], width=3)
+                _chips_cf.append(_chip_ltrb.cpu().numpy().tolist())
+                for _ind in _ind_cluster:
+                    _bbox = _gt_bboxes[_ind].cpu().numpy()
+                    _bbox_ctr_x = (_bbox[0] + _bbox[2])/2 * _img['width']
+                    _bbox_ctr_y = (_bbox[1] + _bbox[3])/2 * _img['height']
+                    img_src_draw.chord([_bbox_ctr_x-6, _bbox_ctr_y-6, _bbox_ctr_x+6, _bbox_ctr_y+6], 0, 360, fill=_cluster_color[_cluster_id-1])
+                    if cluster_label[_ind, 1] == 1:
+                        img_src_draw.chord([_bbox_ctr_x-3, _bbox_ctr_y-3, _bbox_ctr_x+3, _bbox_ctr_y+3], 0, 360, fill=(255,0,0))
 
-    # _gt_bboxes = l[_ind_cls1_l, 1:]  # normalized xywh
-    _gt_bboxes = l[:, 1:]
-    _gt_bboxes_area = _gt_bboxes[:, 2] * _gt_bboxes[:, 3]
-    _sm_obj_mask = _gt_bboxes_area < 0.01  # 中小目标的面积阈值, 根据数据集及应用场景而设定, 高于该值的目标无需crop放大;
-    _gt_bboxes = bbox_cxcywh_to_xyxy(torch.from_numpy(_gt_bboxes[_sm_obj_mask]))
-    cluster_label = cluster_gt_bboxes(_gt_bboxes)
-    _enclosed_ltrb = torch.cat((_gt_bboxes[:, :2].min(dim=0)[0], _gt_bboxes[:, 2:].max(dim=0)[0]),-1)
-    _enclosed_ltrb[[0, 2]] *= img_wh[0]
-    _enclosed_ltrb[[1, 3]] *= img_wh[1]
-    _cluster_color = [(0,255,0), (0,0,255), (255,255,0)]  # green, blue, yellow
-    for _cluster_id in [1, 2, 3]:
-        _ind_cluster = torch.nonzero(cluster_label[:, 0] == _cluster_id, as_tuple=False).squeeze()
-        if _ind_cluster.numel() < 1:
-            break
-        elif _ind_cluster.numel() == 1:
-            _chip_ltrb = _gt_bboxes[_ind_cluster, :].clone()
-            _ind_cluster = [_ind_cluster, ]
-        else:
-            _chip_ltrb = torch.cat((_gt_bboxes[_ind_cluster, :2].min(dim=0)[0], _gt_bboxes[_ind_cluster, 2:].max(dim=0)[0]),-1)
-        _chip_ltrb[[0, 2]] *= img_wh[0]
-        _chip_ltrb[[1, 3]] *= img_wh[1]
-        img_cls_2_draw.rectangle(_chip_ltrb.cpu().numpy(), fill=None, outline=_cluster_color[_cluster_id-1], width=2)
-        for _ind in _ind_cluster:
-            _bbox = _gt_bboxes[_ind].cpu().numpy()
-            _bbox_ctr_x = (_bbox[0] + _bbox[2])/2 * img_wh[0]
-            _bbox_ctr_y = (_bbox[1] + _bbox[3])/2 * img_wh[1]
-            img_cls_2_draw.chord([_bbox_ctr_x-6, _bbox_ctr_y-6, _bbox_ctr_x+6, _bbox_ctr_y+6], 0, 360, fill=_cluster_color[_cluster_id-1])
-            if cluster_label[_ind, 1] == 1:
-                img_cls_2_draw.chord([_bbox_ctr_x-3, _bbox_ctr_y-3, _bbox_ctr_x+3, _bbox_ctr_y+3], 0, 360, fill=(255,0,0))
+            img_src.save(path_to_tmp / f"sid{_img['sid']}_fid{_img['fid']}_cls_euc_3cluster.jpg")
+            
+            for _idx_type in range(num_lft_type):
+                _img_idx_nf = _img_idx + _idx_type
+                _fid_nf = _img['fid'] + _idx_type*100
+                if _img_idx_nf < len(imgs_per_seq) and imgs_per_seq[_img_idx_nf]['fid'] == _fid_nf:
+                    if imgs_per_seq[_img_idx_nf].get('chips_lft', None) is None:
+                        imgs_per_seq[_img_idx_nf]['chips_lft'] = [[] for _ in range(num_lft_type)]
+                    imgs_per_seq[_img_idx_nf]['chips_lft'][_idx_type].extend(_chips_cf)
+        
+        # imgs_new.extend(imgs_per_seq)
+    # a['images'] = imgs_new
 
-    img_cls2.save(path_to_tmp / f'img_cls_filter_l_cluster_v1_diouv_3cluster_1.2_3.2.jpg')
-    pass
+    path_to_new_file = json_dir.parents[1] / 'annotations_focus'
+    if not path_to_new_file.exists():
+        path_to_new_file.mkdir(parents=True, exist_ok=True)
+    json.dump(a, open(path_to_new_file  / (json_dir.stem + '_5lft_1.json'), 'w'), indent=4)
+
+
+def plot_labels_on_img(json_dir):
+    imgs_dir = json_dir.parents[1] / 'images'
+    json_files = sorted(glob.glob(str(json_dir), recursive=False))
+    for _json_file in json_files:
+        with open(_json_file, 'r') as f:
+            a = json.load(f)
+        cls_names = dict()
+        for _val in a['categories']:
+            cls_names[_val['id']]=_val['name']
+        for _img in a['images']:
+            anns_per_img = [_ann for _ann in a['annotations'] if _ann['image_id'] == _img['id']]
+            if len(anns_per_img) == 0:
+                continue
+            # The COCO box format is [top left x, top left y, width, height]
+            _labels = np.array([[_val['category_id'],] + _val['bbox'] for _val in anns_per_img], dtype=np.float64)
+            _labels[:, 1:3] += _labels[:, 3:5] / 2  # xy top-left corner to center
+            _labels[:, [1, 3]] /= _img['width']  # normalize x
+            _labels[:, [2, 4]] /= _img['height']  # normalize y
+            _img_file = str(imgs_dir) + '/' + a['seq_dirs'][_img['sid']] + '/' + _img['name']
+            path_to_tmp = json_dir.parents[1] / f"images_ann/{a['seq_dirs'][_img['sid']]}"
+            if not path_to_tmp.exists():
+                path_to_tmp.mkdir(parents=True, exist_ok=True)
+            plot_images_v1(None, np.concatenate((np.zeros_like(_labels[:,0:1]), _labels), -1), (_img_file, ), path_to_tmp / _img['name'], cls_names, None, 'original_image')
+
+
+def main():
+    dir = Path('/home/hustget/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/datasets')
+    # annotations_dir = 'Argoverse-1.1/annotations/'
+    annotations_dir = 'Argoverse-HD-mini/annotations/'
+    # plot_labels_on_img(dir / 'Argoverse-HD-mini/annotations/train*.json')
+    # plot_labels_on_img(dir / 'Argoverse-HD-mini/annotations_scale_type_800_sub/val*.json')
+    inject_chips_params_to_anns(dir / annotations_dir / "val.json")
+    print('\nfinish!')
 
 
 if __name__ == "__main__":
+    # opt = parse_opt()
+    # main(opt)
     main()
-    print('\nfinish')
+    # cd /mnt/data1/yuhangcheng/yhc_workspace/datasets/Argoverse-HD
+    # cd /mnt/data1/yuhangcheng/yhc_workspace/datasets/Argoverse-HD-mini
+    # rm -rf *.json

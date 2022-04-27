@@ -268,7 +268,8 @@ def plot_images_v1(images, targets, paths=None, fname='images.jpg', names=None, 
                 x + (chip_xywh[0]+chip_xywh[2]/2)*shapes_params[i][0][1]*shapes_params[i][1][0][1] + shapes_params[i][1][1][0], 
                 y + (chip_xywh[1]+chip_xywh[3]/2)*shapes_params[i][0][0]*shapes_params[i][1][0][0] + shapes_params[i][1][1][1]], None, (255, 255, 255), width=2)
         elif img_src == 'original_image':
-            annotator.rectangle([x + (chip_xywh[0]-chip_xywh[2]/2)*w, y + (chip_xywh[1]-chip_xywh[3]/2)*h, x + (chip_xywh[0]+chip_xywh[2]/2)*w, y + (chip_xywh[1]+chip_xywh[3]/2)*h], None, (255, 255, 255), width=2)  # hc-y_add1123:绘制chip框
+            pass
+            # annotator.rectangle([x + (chip_xywh[0]-chip_xywh[2]/2)*w, y + (chip_xywh[1]-chip_xywh[3]/2)*h, x + (chip_xywh[0]+chip_xywh[2]/2)*w, y + (chip_xywh[1]+chip_xywh[3]/2)*h], None, (255, 255, 255), width=2)  # hc-y_add1123:绘制chip框
         if paths:
             annotator.text((x + 5, y + 5 + h), text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
         if len(targets) > 0:

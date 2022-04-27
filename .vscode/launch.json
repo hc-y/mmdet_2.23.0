@@ -20,7 +20,8 @@
                 // "--gpus", "0",
                 // "--gpu-ids", "7",
                 // for debugging mmdet tools/test.py
-                "configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd_640.py",
+                "configs/yolox/yolox_s_8x8_300e_argoverse.py",
+                // "configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd_640.py",
                 // "work_dirs_poc_archive/yolof_r50_c5_8x8_1x_argoverse_hd_poc_01071635/latest.pth",
                 // "configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd.py",
                 // "work_dirs/yolof_r50_c5_8x8_1x_argoverse_hd_12301721/latest.pth",
