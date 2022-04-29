@@ -417,7 +417,7 @@ def main():
     for _cluster_id in [1, 2, 3]:
         _ind_cluster = torch.nonzero(cluster_label[:, 0] == _cluster_id, as_tuple=False).squeeze()
         if _ind_cluster.numel() < 1:
-            break
+            continue
         elif _ind_cluster.numel() == 1:
             _chip_ltrb = _gt_bboxes[_ind_cluster, :].clone()
             _ind_cluster = [_ind_cluster, ]

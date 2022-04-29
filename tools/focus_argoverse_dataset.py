@@ -27,7 +27,7 @@ import shutil
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import math
-from tools.general import xyxy2xywhn, xywh2xyxy, increment_path
+from tools.general import xyxy2xywh, xyxy2xywhn, xywh2xyxy, increment_path, clip_coords
 from tools.plots import plot_images_v1
 from mmdet.core import bbox_cxcywh_to_xyxy
 # from mmdet.core.bbox.iou_calculators import fp16_clamp
@@ -348,15 +348,19 @@ def bbox_overlaps_ext(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
     return gious
 
 
-def cluster_gt_bboxes(p_bboxes):
+def cluster_gt_bboxes(p_bboxes, img_wh):
     """hc-y_write0326:基于 DensityPeakCluster 生成 small objects 的聚集区域;
 
     Args:
         p_bboxes (Tensor): gt bboxes with shape (N, 4) in (x1, y1, x2, y2) format;
+        img_wh (Tuple): width and height of original image;
 
     Returns:
         cluster_label (Tensor): with shape (N, 2), which cluster each gt bbox belongs.
                     一个用于指示划分到了哪个簇, 一个用于指示是否是簇中心;
+        chips_ltrb (Tensor): with shape (<=3,4), 生成的原始 chips 参数;
+        chips_ltrb_expand_new (Tensor): with shape (<=3,4), 过滤掉被其它 chips_expand 所包含
+                    的以及所包含 objects 数量少于3的 chips 后, 剩余 chips 所对应的 chips_expand 参数;
     """
     num_p = len(p_bboxes)
     # Step 1. compute dist_obj (distance) between all gt bboxes, and adjust the value interval from [-1,1] to [0,2] via (1. - giou);
@@ -369,8 +373,7 @@ def cluster_gt_bboxes(p_bboxes):
         dist_obj = bbox_overlaps_ext(p_bboxes, p_bboxes, mode='diouv2', is_aligned=False, eps=1e-7)
     elif dist_obj_mode in ['EuclideanDist',]:
         bboxes1_ctr_xy = (p_bboxes[..., :2] + p_bboxes[..., 2:]) / 2
-        ctr_xy_dist = torch.pow(bboxes1_ctr_xy[..., :, None, :] - bboxes1_ctr_xy[..., None, :, :], 2.).sum(dim=-1)
-        dist_obj = ctr_xy_dist
+        dist_obj = torch.pow(bboxes1_ctr_xy[..., :, None, :] - bboxes1_ctr_xy[..., None, :, :], 2.).sum(dim=-1)  # ctr_xy_dist
 
     # Step 2. select the \k smallest dist_obj as candidates, and compute the mean and std, set mean + std * 0.8 as the dist_obj threshold (cuttoff_distance);
     selectable_k = int(num_p * 2)  # 超参数, 待调节;
@@ -388,10 +391,11 @@ def cluster_gt_bboxes(p_bboxes):
     p_sigma[p_rho.argmax()] = dist_obj.max()  # 对于最大局部密度点, 设置 \sigma 为 dist_obj 的最大值dist_obj.max()
     # Step 5. determine the cluster center according to \rho and \sigma;
     # cluster_1st = (p_rho * p_sigma).sort(descending=True)[1][:3]
-    _cluster_1st = (p_rho * p_sigma).sort(descending=True)[1][:5]  # 预设 5 个簇中心, 但最终至多保留 3 个簇中心
+    _cluster_1st = (p_rho * p_sigma).sort(descending=True)[1][:5]  # 依据 (p_rho * p_sigma) 从高到低, 预设 5 个簇中心, 但最终至多保留 3 个簇中心
+    cluster_dist_obj_thr = candidate_dist_obj_thr * 3.2  # 超参数, 待调节; 该参数会影响到 Step 6 中各个点是否会被划分入簇;
     cluster_1st = []
-    for _idx in range(len(_cluster_1st)):
-        if _idx == 0 or dist_obj[_cluster_1st[_idx], _cluster_1st[:_idx]].min() > candidate_dist_obj_thr * 3.2:
+    for _idx in range(len(_cluster_1st)):  # 如果某个簇中心可以被划分到另一个簇中心 (p_rho * p_sigma) 值比其高的簇中, 则移除该簇中心;
+        if _idx == 0 or dist_obj[_cluster_1st[_idx], _cluster_1st[:_idx]].min() > cluster_dist_obj_thr:
             cluster_1st.append(_cluster_1st[_idx])
     cluster_label = torch.zeros((num_p, 2), dtype=torch.int64, device=dist_obj.device)
     if len(cluster_1st) == 0:
@@ -407,13 +411,68 @@ def cluster_gt_bboxes(p_bboxes):
     for _sorted_ind in p_rho_sorted_ind:
         if cluster_label[_sorted_ind, 0] == 0:
             _min_dist_obj, _argmin_dist_obj = dist_obj[_sorted_ind, p_rho_clustered_ind].min(dim=0)
-            # 对于除 traffic_light 之外的其它类别, giou:*0.95, diouv:*1.05; 对于 traffic_light 类别, giou:*0.95, diouv:*0.95; 对于不区分类别, giou:*1.0, diouv:*1.0;
-            if _min_dist_obj <= candidate_dist_obj_thr * 3.2:  # 超参数, 待调节; 该参数会影响到 Step 6 中各个点是否会被划分入簇;
+            # 对于除 traffic_light 之外的其它类别, 略; 对于 traffic_light 类别, 略; 对于不区分类别, giou:*1.0, diouv:*1.0;
+            if _min_dist_obj <= cluster_dist_obj_thr:
                 cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]
             # cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]  # 不加限制地对所有点都划分入簇, tag:all
             p_rho_clustered_ind.append(_sorted_ind.item())
 
-    return cluster_label
+    # 计算属于同一簇的 objects 的包围框
+    num_per_cluster, num_per_chip = [], []
+    chips_ltrb_list = []
+    for _cluster_id in range(1, len(cluster_1st)+1):
+        _ind_cluster = torch.nonzero(cluster_label[:, 0] == _cluster_id, as_tuple=False).squeeze()
+        num_per_cluster.append(_ind_cluster.numel())
+        if _ind_cluster.numel() == 1:
+            chips_ltrb_list.append(p_bboxes[_ind_cluster, :])
+        else:
+            chips_ltrb_list.append(torch.cat((p_bboxes[_ind_cluster, :2].min(dim=0)[0], p_bboxes[_ind_cluster, 2:].max(dim=0)[0]),-1))
+    chips_ltrb = torch.stack(chips_ltrb_list, dim=0)
+    chips_ltrb[:, [0, 2]] *= img_wh[0]
+    chips_ltrb[:, [1, 3]] *= img_wh[1]
+    chips_xywh_ = xyxy2xywh(chips_ltrb)
+    chips_xywh_[:, 2:] += (chips_xywh_[:, 2:].min(dim=1, keepdim=True)[0] * 0.4).tile(1,2)  # 超参数, 待调节;
+    # chips_ltrb_expand = xywh2xyxy(chips_xywh_)
+    # clip_coords(chips_ltrb_expand, (img_wh[1],img_wh[0]))
+
+    if len(chips_ltrb) > 1:
+        iof_chips_ = bbox_overlaps_ext(chips_ltrb, xywh2xyxy(chips_xywh_), mode='iof', is_aligned=False, eps=1e-7)
+        iof_chips_ = iof_chips_ - iof_chips_.diag().diag_embed()
+        chips_merge_tag = (iof_chips_.max(dim=1)[1] + 1) * (iof_chips_.max(dim=1)[0] > 0.95)  # chips_merge_id >=1 的 chip_ltrb 可以被合并;
+        _chip_id_exclude, chips_ltrb_new = [], []
+        for _chip_id in range(len(chips_ltrb)):  # 当前的 chip_ltrb
+            if _chip_id in _chip_id_exclude:
+                continue
+            _chip_id_merged = torch.nonzero(chips_merge_tag == _chip_id + 1, as_tuple=False).squeeze()  # 被 merged 的那个 chip_ltrb
+            if _chip_id_merged.numel() == 0 and num_per_cluster[_chip_id] > 2:
+                chips_ltrb_new.append(chips_ltrb[_chip_id])
+            elif _chip_id_merged.numel() == 1 and num_per_cluster[_chip_id]+num_per_cluster[_chip_id_merged.item()] > 2:
+                chip_ltrb_new = torch.stack((chips_ltrb[_chip_id], chips_ltrb[_chip_id_merged]), dim=0)
+                chip_ltrb_new = torch.cat((chip_ltrb_new[:, :2].min(dim=0)[0], chip_ltrb_new[:, 2:].max(dim=0)[0]),-1)
+                chips_ltrb_new.append(chip_ltrb_new)
+                _chip_id_exclude.append(_chip_id_merged.item())
+            elif _chip_id_merged.numel() > 1 and num_per_cluster[_chip_id]+sum([num_per_cluster[_val.item()] for _val in _chip_id_merged]) > 2:
+                chip_ltrb_new = torch.cat((chips_ltrb[_chip_id][None,:], chips_ltrb[_chip_id_merged]), dim=0)
+                chip_ltrb_new = torch.cat((chip_ltrb_new[:, :2].min(dim=0)[0], chip_ltrb_new[:, 2:].max(dim=0)[0]),-1)
+                chips_ltrb_new.append(chip_ltrb_new)
+                _chip_id_exclude.extend([_val.item() for _val in _chip_id_merged])
+        if len(chips_ltrb_new) > 0:
+            chips_xywh_new_ = xyxy2xywh(torch.stack(chips_ltrb_new, dim=0))
+            chips_xywh_new_[:, 2:] += (chips_xywh_new_[:, 2:].min(dim=1, keepdim=True)[0] * 0.4).repeat(1,2)  # 超参数, 待调节;
+        else:
+            chips_xywh_new_ = None
+    else:
+        if num_per_cluster[0] > 2:
+            chips_xywh_new_ = chips_xywh_
+        else:
+            chips_xywh_new_ = None
+    if chips_xywh_new_ is not None:
+        chips_ltrb_expand_new = xywh2xyxy(chips_xywh_new_)
+        clip_coords(chips_ltrb_expand_new, (img_wh[1],img_wh[0]))
+    else:
+        chips_ltrb_expand_new = None
+
+    return cluster_label, chips_ltrb, chips_ltrb_expand_new
 
 
 def inject_chips_params_to_anns(json_dir):
@@ -441,7 +500,7 @@ def inject_chips_params_to_anns(json_dir):
         imgs_per_seqs[sid_list.index(_img['sid'])].append(_img)
 
     cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
-    path_to_tmp = json_dir.parents[1] / 'imgs_vis_tmp'
+    path_to_tmp = json_dir.parents[1] / 'imgs_vis_val_euc_1.2_3.2_3'
     if not path_to_tmp.exists():
         path_to_tmp.mkdir(parents=True, exist_ok=True)
     # imgs_new = []
@@ -454,45 +513,35 @@ def inject_chips_params_to_anns(json_dir):
             # The COCO box format is [top left x, top left y, width, height]
             _gt_anns = np.array([[_val['category_id'],] + _val['bbox'] for _val in anns_per_img], dtype=np.float64)
             _gt_anns[:, 1:3] += _gt_anns[:, 3:] / 2  # xy top-left corner to center
+            _gt_anns_ = np.copy(_gt_anns)
             _gt_anns[:, [1, 3]] /= _img['width']  # normalize x
             _gt_anns[:, [2, 4]] /= _img['height']  # normalize y
             # _ind_cls1_l = np.where(_gt_anns[:, 0] == 6)[0]  # traffic_light
             # _ind_cls2_l = np.where(_gt_anns[:, 0] != 6)[0]  # 除 traffic_light 之外的其它类别
 
-            # if _img['sid'] != 18:
-            #     break
+            # if _img['sid'] != 0 or _img['fid'] != 100:
+            #     continue
 
             _chips_cf = []
             _gt_bboxes_area = _gt_anns[:, 3] * _gt_anns[:, 4]
             _sm_obj_mask = _gt_bboxes_area < 0.01  # 中小目标的面积阈值, 根据数据集及应用场景而设定, 高于该值的目标无需crop放大;
-            _gt_bboxes = bbox_cxcywh_to_xyxy(torch.from_numpy(_gt_anns[_sm_obj_mask][:, 1:]))
-            cluster_label = cluster_gt_bboxes(_gt_bboxes)
+            _gt_bboxes_sm = bbox_cxcywh_to_xyxy(torch.from_numpy(_gt_anns[_sm_obj_mask][:, 1:]))
+            img_wh = (_img['width'], _img['height'])
+            cluster_label, chips_ltrb, chips_ltrb_expand_new = cluster_gt_bboxes(_gt_bboxes_sm, img_wh)
             path_to_img = json_dir.parents[1] / f"images_ann/{a['seq_dirs'][_img['sid']]}/{_img['name']}"
             img_src = Image.open(str(path_to_img))
             img_src_draw = DashedImageDraw(img_src)
-            _cluster_color = [(0,0,255), (0,128,0), (128,0,128)]  # blue, green, purple
-            for _cluster_id in [1, 2, 3]:
-                _ind_cluster = torch.nonzero(cluster_label[:, 0] == _cluster_id, as_tuple=False).squeeze()
-                # if _ind_cluster.numel() <= 3:  # 丢弃所包含 objects 数量少于等于 3 的簇
-                if _ind_cluster.numel() < 1:
-                    break
-                elif _ind_cluster.numel() == 1:
-                    _chip_ltrb = _gt_bboxes[_ind_cluster, :].clone()
-                    _ind_cluster = [_ind_cluster, ]
-                else:
-                    _chip_ltrb = torch.cat((_gt_bboxes[_ind_cluster, :2].min(dim=0)[0], _gt_bboxes[_ind_cluster, 2:].max(dim=0)[0]),-1)
-                _chip_ltrb[[0, 2]] *= _img['width']
-                _chip_ltrb[[1, 3]] *= _img['height']
-                img_src_draw.dashed_rectangle(_chip_ltrb.cpu().numpy(), dash=(8,8), outline=_cluster_color[_cluster_id-1], width=3)
-                _chips_cf.append(_chip_ltrb.cpu().numpy().tolist())
-                for _ind in _ind_cluster:
-                    _bbox = _gt_bboxes[_ind].cpu().numpy()
-                    _bbox_ctr_x = (_bbox[0] + _bbox[2])/2 * _img['width']
-                    _bbox_ctr_y = (_bbox[1] + _bbox[3])/2 * _img['height']
-                    img_src_draw.chord([_bbox_ctr_x-6, _bbox_ctr_y-6, _bbox_ctr_x+6, _bbox_ctr_y+6], 0, 360, fill=_cluster_color[_cluster_id-1])
-                    if cluster_label[_ind, 1] == 1:
-                        img_src_draw.chord([_bbox_ctr_x-3, _bbox_ctr_y-3, _bbox_ctr_x+3, _bbox_ctr_y+3], 0, 360, fill=(255,0,0))
-
+            _cluster_color = [(0,0,255), (0,128,0), (128,0,128), (0,0,0), (255,255,255)]  # blue, green, purple, black, white
+            for i, _bbox in enumerate(_gt_anns_[_sm_obj_mask][:, 1:]):
+                img_src_draw.chord([_bbox[0]-6, _bbox[1]-6, _bbox[0]+6, _bbox[1]+6], 0, 360, fill=_cluster_color[cluster_label[i, 0]-1])
+                if cluster_label[i, 1] == 1:
+                    img_src_draw.chord([_bbox[0]-3, _bbox[1]-3, _bbox[0]+3, _bbox[1]+3], 0, 360, fill=(255,0,0))
+            for i, _chip_ltrb in enumerate(chips_ltrb.cpu().numpy()):
+                img_src_draw.dashed_rectangle(_chip_ltrb, dash=(8,8), outline=_cluster_color[i], width=3)
+            if chips_ltrb_expand_new is not None:
+                _chips_cf.extend(chips_ltrb_expand_new.cpu().numpy().tolist())
+                for _chip_ltrb_expand_new in chips_ltrb_expand_new.cpu().numpy():
+                    img_src_draw.dashed_rectangle(_chip_ltrb_expand_new, dash=(8,8), outline=_cluster_color[3], width=3)
             img_src.save(path_to_tmp / f"sid{_img['sid']}_fid{_img['fid']}_cls_euc_3cluster.jpg")
             
             for _idx_type in range(num_lft_type):
@@ -509,7 +558,7 @@ def inject_chips_params_to_anns(json_dir):
     path_to_new_file = json_dir.parents[1] / 'annotations_focus'
     if not path_to_new_file.exists():
         path_to_new_file.mkdir(parents=True, exist_ok=True)
-    json.dump(a, open(path_to_new_file  / (json_dir.stem + '_5lft_1.json'), 'w'), indent=4)
+    json.dump(a, open(path_to_new_file  / (json_dir.stem + '_5lft_val_euc_1.2_3.2.json'), 'w'), indent=4)
 
 
 def plot_labels_on_img(json_dir):
