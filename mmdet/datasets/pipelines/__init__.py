@@ -14,6 +14,7 @@ from .transforms import (Albu, CutOut, Expand, MinIoURandomCrop, MixUp, Mosaic,
                          Normalize, Pad, PhotoMetricDistortion, RandomAffine,
                          RandomCenterCropPad, RandomCrop, RandomFlip,
                          RandomShift, Resize, SegRescale, YOLOXHSVRandomAug)
+from .loading_chip import (LoadAnnotationsWChipsV1,)
 from .formating_chip import (ImageToTensorChipsV1v1, ImageToTensorChipsV1v2, DefaultFormatBundleChipsV1v1, DefaultFormatBundleChipsV1v2)
 from .transforms_chip import (ResizeChipsV1v1, ResizeChipsV1v2, NormalizeChipsV1v1)
 
@@ -31,4 +32,5 @@ __all__ = [
     'ResizeChipsV1v1', 'ResizeChipsV1v2', 'NormalizeChipsV1v1', 
     'ImageToTensorChipsV1v1', 'ImageToTensorChipsV1v2',
     'DefaultFormatBundleChipsV1v1', 'DefaultFormatBundleChipsV1v2',
+    'LoadAnnotationsWChipsV1',
 ]

@@ -12,6 +12,7 @@
 
 @annotation: hc-y_note:, hc-y_Q:, hc-y_highlight:, hc-y_add:, hc-y_modify:, c-y_write:,
 """
+from unicodedata import category
 import torch
 import glob
 import sys
@@ -31,6 +32,7 @@ from tools.general import xyxy2xywh, xyxy2xywhn, xywh2xyxy, increment_path, clip
 from tools.plots import plot_images_v1
 from mmdet.core import bbox_cxcywh_to_xyxy
 # from mmdet.core.bbox.iou_calculators import fp16_clamp
+from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 
 
 class DashedImageDraw(ImageDraw.ImageDraw):
@@ -475,8 +477,8 @@ def cluster_gt_bboxes(p_bboxes, img_wh):
     return cluster_label, chips_ltrb, chips_ltrb_expand_new
 
 
-def inject_chips_params_to_anns(json_dir):
-    """hc-y_write0421:读取 train.json, val.json, 基于 gt_bboxes 为每张图片计算 chips 参数; 并可视化画框显示效果;
+def inject_chips_params_to_anns(json_dir, flag_img_vis=False):
+    """hc-y_write0421:读取 annotations_focus/train.json, 基于 gt_bboxes 为每张图片计算 chips 参数; 并可视化画框显示效果;
 
     Args:
         json_dir (class::Path): ;
@@ -487,6 +489,7 @@ def inject_chips_params_to_anns(json_dir):
     if "test-meta.json" in (json_dir.stem + '.json'):
         return
     last_frame_time_type = ['t-0', 't-1', 't-2', 't-3', 't-4']
+    # lf: last frame; cf: current frame; nf: next frame;
     num_lft_type = len(last_frame_time_type)
     with open(json_dir, 'r') as f:
         a = json.load(f)
@@ -500,9 +503,10 @@ def inject_chips_params_to_anns(json_dir):
         imgs_per_seqs[sid_list.index(_img['sid'])].append(_img)
 
     cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
-    path_to_tmp = json_dir.parents[1] / 'imgs_vis_val_euc_1.2_3.2_3'
-    if not path_to_tmp.exists():
-        path_to_tmp.mkdir(parents=True, exist_ok=True)
+    if flag_img_vis:
+        path_to_tmp = json_dir.parents[1] / f"imgs_vis_{json_dir.stem}_euc_1.2_3.2_3"
+        if not path_to_tmp.exists():
+            path_to_tmp.mkdir(parents=True, exist_ok=True)
     # imgs_new = []
     for imgs_per_seq in imgs_per_seqs:
         imgs_per_seq.sort(key=lambda x:x['fid'])  # 依据 _img['fid'] 从小到大对 frame 排序
@@ -528,21 +532,25 @@ def inject_chips_params_to_anns(json_dir):
             _gt_bboxes_sm = bbox_cxcywh_to_xyxy(torch.from_numpy(_gt_anns[_sm_obj_mask][:, 1:]))
             img_wh = (_img['width'], _img['height'])
             cluster_label, chips_ltrb, chips_ltrb_expand_new = cluster_gt_bboxes(_gt_bboxes_sm, img_wh)
-            path_to_img = json_dir.parents[1] / f"images_ann/{a['seq_dirs'][_img['sid']]}/{_img['name']}"
-            img_src = Image.open(str(path_to_img))
-            img_src_draw = DashedImageDraw(img_src)
-            _cluster_color = [(0,0,255), (0,128,0), (128,0,128), (0,0,0), (255,255,255)]  # blue, green, purple, black, white
-            for i, _bbox in enumerate(_gt_anns_[_sm_obj_mask][:, 1:]):
-                img_src_draw.chord([_bbox[0]-6, _bbox[1]-6, _bbox[0]+6, _bbox[1]+6], 0, 360, fill=_cluster_color[cluster_label[i, 0]-1])
-                if cluster_label[i, 1] == 1:
-                    img_src_draw.chord([_bbox[0]-3, _bbox[1]-3, _bbox[0]+3, _bbox[1]+3], 0, 360, fill=(255,0,0))
-            for i, _chip_ltrb in enumerate(chips_ltrb.cpu().numpy()):
-                img_src_draw.dashed_rectangle(_chip_ltrb, dash=(8,8), outline=_cluster_color[i], width=3)
-            if chips_ltrb_expand_new is not None:
-                _chips_cf.extend(chips_ltrb_expand_new.cpu().numpy().tolist())
-                for _chip_ltrb_expand_new in chips_ltrb_expand_new.cpu().numpy():
-                    img_src_draw.dashed_rectangle(_chip_ltrb_expand_new, dash=(8,8), outline=_cluster_color[3], width=3)
-            img_src.save(path_to_tmp / f"sid{_img['sid']}_fid{_img['fid']}_cls_euc_3cluster.jpg")
+            if flag_img_vis:
+                path_to_img = json_dir.parents[1] / f"images_ann/{a['seq_dirs'][_img['sid']]}/{_img['name']}"
+                img_src = Image.open(str(path_to_img))
+                img_src_draw = DashedImageDraw(img_src)
+                _cluster_color = [(0,0,255), (0,128,0), (128,0,128), (0,0,0), (255,255,255)]  # blue, green, purple, black, white
+                for i, _bbox in enumerate(_gt_anns_[_sm_obj_mask][:, 1:]):
+                    img_src_draw.chord([_bbox[0]-6, _bbox[1]-6, _bbox[0]+6, _bbox[1]+6], 0, 360, fill=_cluster_color[cluster_label[i, 0]-1])
+                    if cluster_label[i, 1] == 1:
+                        img_src_draw.chord([_bbox[0]-3, _bbox[1]-3, _bbox[0]+3, _bbox[1]+3], 0, 360, fill=(255,0,0))
+                for i, _chip_ltrb in enumerate(chips_ltrb.cpu().numpy()):
+                    img_src_draw.dashed_rectangle(_chip_ltrb, dash=(8,8), outline=_cluster_color[i], width=3)
+                if chips_ltrb_expand_new is not None:
+                    _chips_cf.extend(chips_ltrb_expand_new.cpu().numpy().tolist())
+                    for _chip_ltrb_expand_new in chips_ltrb_expand_new.cpu().numpy():
+                        img_src_draw.dashed_rectangle(_chip_ltrb_expand_new, dash=(8,8), outline=_cluster_color[3], width=3)
+                img_src.save(path_to_tmp / f"sid{_img['sid']}_fid{_img['fid']}_cls_euc_3cluster.jpg")
+            else:
+                if chips_ltrb_expand_new is not None:
+                    _chips_cf.extend(chips_ltrb_expand_new.cpu().numpy().tolist())
             
             for _idx_type in range(num_lft_type):
                 _img_idx_nf = _img_idx + _idx_type
@@ -558,11 +566,80 @@ def inject_chips_params_to_anns(json_dir):
     path_to_new_file = json_dir.parents[1] / 'annotations_focus'
     if not path_to_new_file.exists():
         path_to_new_file.mkdir(parents=True, exist_ok=True)
-    json.dump(a, open(path_to_new_file  / (json_dir.stem + '_5lft_val_euc_1.2_3.2.json'), 'w'), indent=4)
+    json.dump(a, open(path_to_new_file  / (json_dir.stem + '_5lft_euc_1.2_3.2.json'), 'w'), indent=4)
 
 
-def plot_labels_on_img(json_dir):
-    imgs_dir = json_dir.parents[1] / 'images'
+def generate_chips_dataset(json_dir):
+    """hc-y_write0430:读取 annotations_focus/train.json, yiju chips 参数congyuantuzhong crop chu chips shengcheng chips_dataset;
+
+    Args:
+        json_dir (class::Path): ;
+
+    Returns:
+        xxx;
+    """
+    with open(json_dir, 'r') as f:
+        a = json.load(f)
+
+    import cv2
+    imgs_new, anns_new = [], []
+    img_counts, anns_count = 0, 0
+    for _img in a['images']:
+        anns_per_img = [_ann for _ann in a['annotations'] if _ann['image_id'] == _img['id']]
+        if len(anns_per_img) == 0:
+            continue
+        # The COCO box format is [top left x, top left y, width, height]
+        _gt_bboxes = np.array([_val['bbox'] for _val in anns_per_img], dtype=np.float64)
+        _gt_bboxes[:, 2:] += _gt_bboxes[:, :2]  # width,height to bottom right x,y
+        path_to_img = json_dir.parents[1] / f"images/{a['seq_dirs'][_img['sid']]}/{_img['name']}"
+        path_to_chip = json_dir.parents[1] / f"images_chip/{a['seq_dirs'][_img['sid']]}"
+        if not path_to_chip.exists():
+            path_to_chip.mkdir(parents=True, exist_ok=True)
+        img_src = cv2.imread(str(path_to_img))  # HWC BGR
+        # lf: last frame; cf: current frame; nf: next frame;
+        # TODO: gei chips_lf shijiayigesuijidoudong
+        chips_lf = _img['chips_lft'][0]
+        for i in range(len(chips_lf)):
+            x1a0,y1a0,x2a0,y2a0 = (int(_val) for _val in chips_lf[0])
+            chip_img = img_src[y1a0:y2a0, x1a0:x2a0]
+            gt_bboxes_clipped = _gt_bboxes.copy()
+            np.clip(gt_bboxes_clipped[:,0::2], x1a0, x2a0, out=gt_bboxes_clipped[:,0::2])
+            np.clip(gt_bboxes_clipped[:,1::2], y1a0, y2a0, out=gt_bboxes_clipped[:,1::2])
+            ious_itself = bbox_overlaps(gt_bboxes_clipped, _gt_bboxes, mode='iou', is_aligned=True)
+            idx_rest = np.where(ious_itself >= 0.5)[0]  # 当gt bbox被clip掉大部分比例时, 直接删除该gt bbox;
+            gt_bboxes_clipped_area = gt_bboxes_clipped[:, 2]*gt_bboxes_clipped[:, 3]
+            gt_bboxes_clipped[:, 2:] -= gt_bboxes_clipped[:, :2]
+            gt_bboxes_clipped[:, 0] -= x1a0
+            gt_bboxes_clipped[:, 1] -= y1a0
+            for j in idx_rest:
+                ann_new = anns_per_img[j].copy()
+                ann_new['id'] = anns_count
+                ann_new['image_id'] = img_counts
+                ann_new['bbox'] = gt_bboxes_clipped[j].tolist()
+                ann_new['area'] = gt_bboxes_clipped_area[j]
+                anns_new.append(ann_new)
+                anns_count += 1
+            img_new = _img.copy()
+            img_new['id'] = img_counts
+            _img_name = img_new['name'].rsplit('.', 1)
+            img_new['name'] = _img_name[0] + f"_{i}." + _img_name[1]
+            cv2.imwrite(str(path_to_chip / f"{img_new['name']}"), chip_img)
+            img_new['width'] = x2a0 - x1a0
+            img_new['height'] = y2a0 - y1a0
+            img_new.pop('chips_lft')
+            imgs_new.append(img_new)
+            img_counts += 1
+    
+    a['images'] = imgs_new
+    a['annotations'] = anns_new
+    path_to_new_file = json_dir.parents[1] / 'annotations_chip'
+    if not path_to_new_file.exists():
+        path_to_new_file.mkdir(parents=True, exist_ok=True)
+    json.dump(a, open(path_to_new_file  / (json_dir.stem + '_chip.json'), 'w'), indent=4)
+
+
+def plot_labels_on_img(json_dir, imgs_folder='images'):
+    imgs_dir = json_dir.parents[1] / imgs_folder
     json_files = sorted(glob.glob(str(json_dir), recursive=False))
     for _json_file in json_files:
         with open(_json_file, 'r') as f:
@@ -580,7 +657,7 @@ def plot_labels_on_img(json_dir):
             _labels[:, [1, 3]] /= _img['width']  # normalize x
             _labels[:, [2, 4]] /= _img['height']  # normalize y
             _img_file = str(imgs_dir) + '/' + a['seq_dirs'][_img['sid']] + '/' + _img['name']
-            path_to_tmp = json_dir.parents[1] / f"images_ann/{a['seq_dirs'][_img['sid']]}"
+            path_to_tmp = json_dir.parents[1] / f"{imgs_folder}_ann/{a['seq_dirs'][_img['sid']]}"
             if not path_to_tmp.exists():
                 path_to_tmp.mkdir(parents=True, exist_ok=True)
             plot_images_v1(None, np.concatenate((np.zeros_like(_labels[:,0:1]), _labels), -1), (_img_file, ), path_to_tmp / _img['name'], cls_names, None, 'original_image')
@@ -589,10 +666,14 @@ def plot_labels_on_img(json_dir):
 def main():
     dir = Path('/home/hustget/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/datasets')
     # annotations_dir = 'Argoverse-1.1/annotations/'
-    annotations_dir = 'Argoverse-HD-mini/annotations/'
-    # plot_labels_on_img(dir / 'Argoverse-HD-mini/annotations/train*.json')
-    # plot_labels_on_img(dir / 'Argoverse-HD-mini/annotations_scale_type_800_sub/val*.json')
-    inject_chips_params_to_anns(dir / annotations_dir / "val.json")
+    annotations_dir = 'Argoverse-HD-mini/annotations'
+    str_train = 'val'
+    # plot_labels_on_img(dir / annotations_dir / f"{str_train}*.json", imgs_folder='images')
+    inject_chips_params_to_anns(dir / annotations_dir / f"{str_train}.json", flag_img_vis=False)
+    annotations_dicr_ = annotations_dir + '_focus'
+    generate_chips_dataset(dir / annotations_dicr_ / f"{str_train}_5lft_euc_1.2_3.2.json")
+    # annotations_dir_ = annotations_dir + '_chip'
+    # plot_labels_on_img(dir / annotations_dir_ / f"{str_train}*.json", imgs_folder='images_chip')
     print('\nfinish!')
 
 
