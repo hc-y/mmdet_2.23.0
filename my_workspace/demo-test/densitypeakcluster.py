@@ -413,7 +413,7 @@ def main():
     _enclosed_ltrb = torch.cat((_gt_bboxes[:, :2].min(dim=0)[0], _gt_bboxes[:, 2:].max(dim=0)[0]),-1)
     _enclosed_ltrb[[0, 2]] *= img_wh[0]
     _enclosed_ltrb[[1, 3]] *= img_wh[1]
-    _cluster_color = [(0,255,0), (0,0,255), (255,255,0)]  # green, blue, yellow
+    _cluster_color = [(0,255,0), (0,0,255), (255,255,0)]  # lime, blue, yellow
     for _cluster_id in [1, 2, 3]:
         _ind_cluster = torch.nonzero(cluster_label[:, 0] == _cluster_id, as_tuple=False).squeeze()
         if _ind_cluster.numel() < 1:

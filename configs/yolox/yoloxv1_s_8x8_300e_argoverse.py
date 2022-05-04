@@ -4,7 +4,8 @@ img_scale = (640, 640)  # height, width  # hc-y_modify0420:原始为(640, 640);
 
 # model settings
 model = dict(
-    type='YOLOX',
+    # type='YOLOX',
+    type='YOLOXV0v1',
     input_size=img_scale,
     random_size_range=(15, 25),
     random_size_interval=10,
@@ -15,15 +16,15 @@ model = dict(
         out_channels=128,
         num_csp_blocks=1),
     bbox_head=dict(
-        type='YOLOXHead', num_classes=8, in_channels=128, feat_channels=128),
+        type='YOLOXHeadV1v1', num_classes=8, in_channels=128, feat_channels=128),
     train_cfg=dict(assigner=dict(type='SimOTAAssigner', center_radius=2.5)),
     # In order to align the source code, the threshold of the val phase is
     # 0.01, and the threshold of the test phase is 0.001.
     test_cfg=dict(score_thr=0.01, nms=dict(type='nms', iou_threshold=0.65)))
 
 # dataset settings
-data_root = './../datasets/Argoverse-1.1/'
-# data_root = './../datasets/Argoverse-HD-mini/'
+# data_root = './../datasets/Argoverse-1.1/'
+data_root = './../datasets/Argoverse-HD-mini/'
 dataset_type = 'ArgoverseDataset'
 
 train_pipeline = [
@@ -62,7 +63,9 @@ train_dataset = dict(
         img_prefix=data_root + 'images/',
         pipeline=[
             dict(type='LoadImageFromFile'),
-            dict(type='LoadAnnotations', with_bbox=True)
+            dict(type='LoadAnnotations', with_bbox=True),
+            # dict(type='LoadAnnotationsWChipsV1', with_bbox=True, with_chip=True),
+            # dict(type='RemixChipsV1v1'),  # hc-y_add0420:
         ],
         filter_empty_gt=False,
     ),
@@ -70,25 +73,37 @@ train_dataset = dict(
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),
+    # dict(type='RemixChipsV1v1'),  # hc-y_add0420:
     dict(
         type='MultiScaleFlipAug',
         img_scale=img_scale,
         flip=False,
         transforms=[
-            dict(type='Resize', keep_ratio=True),
+            # dict(type='Resize', keep_ratio=True),
+            # dict(type='RandomFlip'),
+            # dict(
+            #     type='Pad',
+            #     pad_to_square=True,
+            #     pad_val=dict(img=(114.0, 114.0, 114.0))),
+            # dict(type='DefaultFormatBundle'),
+            # dict(type='Collect', keys=['img'])
+            dict(type='ResizeChipsV1v3', keep_ratio=True),
             dict(type='RandomFlip'),
             dict(
-                type='Pad',
+                type='PadChipsV1v1',
                 pad_to_square=True,
                 pad_val=dict(img=(114.0, 114.0, 114.0))),
-            dict(type='DefaultFormatBundle'),
-            dict(type='Collect', keys=['img'])
+            dict(type='DefaultFormatBundleChipsV1v3'),
+            dict(type='Collect', keys=['img'], 
+                 meta_keys=('filename', 'ori_filename', 'ori_shape',
+                            'img_shape', 'pad_shape', 'scale_factor', 'flip',
+                            'flip_direction', 'img_norm_cfg', 'chips_fields'))
         ])
 ]
 
 data = dict(
-    samples_per_gpu=8,  # hc-y_modify0420:原始为8;
-    workers_per_gpu=4,  # hc-y_modify0420:原始为4;
+    samples_per_gpu=4,  # hc-y_modify0420:原始为8;
+    workers_per_gpu=2,  # hc-y_modify0420:原始为4;
     persistent_workers=True,
     train=train_dataset,
     val=dict(
@@ -106,17 +121,17 @@ data = dict(
 # default 8 gpu
 optimizer = dict(
     type='SGD',
-    lr=0.01*1*8/(8*8),  # hc-y_modify0420:原始为lr=0.01 with num_GPU=8, samles_per_gpu=8;
+    lr=0.01*1*4/(8*8),  # hc-y_modify0420:原始为lr=0.01 with num_GPU=8, samles_per_gpu=8;
     momentum=0.9,
     weight_decay=5e-4,
     nesterov=True,
     paramwise_cfg=dict(norm_decay_mult=0., bias_decay_mult=0.))
 optimizer_config = dict(grad_clip=None)
 
-max_epochs = 300  # hc-y_modify0420:原始为300;
+max_epochs = 60  # hc-y_modify0420:原始为300;
 num_last_epochs = 15
 resume_from = None
-interval = 15
+interval = 10
 
 # learning policy
 lr_config = dict(

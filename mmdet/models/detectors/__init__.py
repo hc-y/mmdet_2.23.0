@@ -43,6 +43,7 @@ from .yolo import YOLOV3
 from .yolof import YOLOF
 from .yolox import YOLOX
 from .yolofv1 import YOLOFV0v1, YOLOFMBranchV1v1, YOLOFMBranchV1v2
+from .yoloxv1 import YOLOXV0v1
 
 __all__ = [
     'ATSS', 'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
@@ -54,5 +55,5 @@ __all__ = [
     'DeformableDETR', 'AutoAssign', 'YOLOF', 'CenterNet', 'YOLOX',
     'TwoStagePanopticSegmentor', 'PanopticFPN', 'QueryInst', 'LAD', 'TOOD',
     'MaskFormer', 'Mask2Former',
-    'YOLOFV0v1', 'YOLOFMBranchV1v1', 'YOLOFMBranchV1v2'
+    'YOLOFV0v1', 'YOLOFMBranchV1v1', 'YOLOFMBranchV1v2', 'YOLOXV0v1'
 ]

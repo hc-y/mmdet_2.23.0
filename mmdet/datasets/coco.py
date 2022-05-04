@@ -689,12 +689,17 @@ class CocoDataset(CustomDataset):
         if jsonfile_prefix is None:  # hc-y_add0118:
             _jsonfile_prefix = (osp.dirname(val_dir) if val_dir is not None else runner.work_dir) + '/results'
             if not osp.exists(_jsonfile_prefix + '.bbox.json') and flag_train_last_epoch:
+                # raise KeyError(f'json file {_jsonfile_prefix}.bbox.json does not exist!')
                 jsonfile_prefix = _jsonfile_prefix
                 # import os
                 # os.remove(_jsonfile_prefix + '.bbox.json')
         from pathlib import Path
         stats_ap_csv = Path(val_dir).parent / f'stats_ap_02.csv' if val_dir is not None else Path(runner.work_dir) / f'stats_ap.csv'
         result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
+        # result_files, tmp_dir = dict(bbox=f'{_jsonfile_prefix}.bbox.json', proposal=f'{_jsonfile_prefix}.bbox.json'), None  # for the 'bbox predictions' type of results
+        # import json
+        # with open(self.ann_file, 'r') as f:
+        #     json_val = json.load(f)
         eval_results = self.evaluate_det_segm(results, result_files, coco_gt,
                                               metrics, logger, classwise,
                                               proposal_nums, iou_thrs,

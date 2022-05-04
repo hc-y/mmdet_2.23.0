@@ -113,9 +113,9 @@ optimizer = dict(
     paramwise_cfg=dict(norm_decay_mult=0., bias_decay_mult=0.))
 optimizer_config = dict(grad_clip=None)
 
-max_epochs = 300  # hc-y_modify0420:原始为300;
+max_epochs = 600  # hc-y_modify0420:原始为300;
 num_last_epochs = 15
-resume_from = None
+resume_from = 'work_dirs/yolox_coco/yolox_s_8x8_300e_coco_20211121_095711-4592a793.pth'
 interval = 15
 
 # learning policy

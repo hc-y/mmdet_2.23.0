@@ -72,7 +72,7 @@ class BboxOverlaps2D:
         return repr_str
 
 
-def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
+def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6, bbox_in=False):
     """Calculate overlap between two set of bboxes.
 
     FP16 Contributed by https://github.com/open-mmlab/mmdetection/pull/4889
@@ -161,6 +161,8 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
             Default False.
         eps (float, optional): A value added to the denominator for numerical
             stability. Default 1e-6.
+        bbox_in (bool, optional): If True, then the overlapping bboxes will # hc-y_add0504:
+            also be returned. Default False.
 
     Returns:
         Tensor: shape (m, n) if ``is_aligned`` is False else shape (m,)
@@ -206,8 +208,12 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
 
     if rows * cols == 0:
         if is_aligned:
+            if bbox_in:
+                return bboxes1.new(batch_shape + (rows, )), bboxes1.new(batch_shape + (rows, ))
             return bboxes1.new(batch_shape + (rows, ))
         else:
+            if bbox_in:
+                return bboxes1.new(batch_shape + (rows, cols)), bboxes1.new(batch_shape + (rows, cols))
             return bboxes1.new(batch_shape + (rows, cols))
 
     area1 = (bboxes1[..., 2] - bboxes1[..., 0]) * (
@@ -252,10 +258,14 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
     union = torch.max(union, eps)
     ious = overlap / union
     if mode in ['iou', 'iof']:
+        if bbox_in:
+            return ious, torch.cat([lt, rb], dim=-1)
         return ious
     # calculate gious
     enclose_wh = fp16_clamp(enclosed_rb - enclosed_lt, min=0)
     enclose_area = enclose_wh[..., 0] * enclose_wh[..., 1]
     enclose_area = torch.max(enclose_area, eps)
     gious = ious - (enclose_area - union) / enclose_area
+    if bbox_in:
+        return gious, torch.cat([lt, rb], dim=-1)
     return gious

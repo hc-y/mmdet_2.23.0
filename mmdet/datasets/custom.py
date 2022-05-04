@@ -256,6 +256,13 @@ class CustomDataset(Dataset):
         if self.proposals is not None:
             results['proposals'] = self.proposals[idx]
         self.pre_pipeline(results)
+        if hasattr(self, 'det_results'):  # hc-y_add0501:
+            img_id_lf = img_info['id'] - 500  # TODO:改为 - 1
+            det_result = [_val for _val in self.det_results if _val['image_id'] == img_id_lf]
+            # if len(det_result) > 0 and img_info['fid'] != 0:  # TODO:取消注释
+            #     assert det_result[0]['sid'] == img_info['sid'] and det_result[0]['fid'] == img_info['fid'] - 500, \
+            #         'current frame doesnot match last frame.'
+            results['det_result'] = det_result
         return self.pipeline(results)
 
     @classmethod

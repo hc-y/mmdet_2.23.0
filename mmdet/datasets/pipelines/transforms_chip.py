@@ -11,8 +11,9 @@ from numpy import random
 
 from mmdet.core import PolygonMasks
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
+from tools.general import xyxy2xywh, xyxy2xywhn, xywh2xyxy, increment_path, clip_coords
 from ..builder import PIPELINES
-from .transforms import Resize, Normalize
+from .transforms import Resize, Pad, Normalize
 
 try:
     from imagecorruptions import corrupt
@@ -25,6 +26,40 @@ try:
 except ImportError:
     albumentations = None
     Compose = None
+
+
+@PIPELINES.register_module()
+class RemixChipsV1v1:  # hc-y_add0419:
+    """Remix images & bbox.
+
+    This tranform crops several chips from the input high-resolution image, 
+    and then rescales these chips and remixes them to produce a new image.
+    """
+    def __init__(self, tmp_repr=None):
+        self.tmp_repr = tmp_repr
+        pass
+
+    def __call__(self, results):
+        """Call function to resize images, bounding boxes.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Resized results, 'img_shape', 'pad_shape', 'scale_factor', \
+                'keep_ratio' keys are added into result dict.
+        """
+        pass
+        self._random_scale(results)
+
+        self._resize_img(results)
+        self._resize_bboxes(results)
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(tmp_repr={self.tmp_repr}, '
+        return repr_str
 
 
 @PIPELINES.register_module()
@@ -218,6 +253,231 @@ class ResizeChipsV1v2(Resize):  # hc-y_add0105:
             _chip_xywh_2 = np.array([(x1a0 + wa0/2) / hw_img0[1], (y1a0 + ha0/2) / hw_img0[0], wa0 / hw_img0[1], ha0 / hw_img0[0]])
             print(f'imgsz={(hw_img0[1], hw_img0[0])}, inputsz={(hw_unpad[1], hw_unpad[0])}, offset_topleft={offsets_topleft[j-1]}时, chip_xywh = {_chip_xywh_2} <-- {chips_xywh[j-1]}')
             print(f'chip_xywh before round: {chips_xywh[j-1]}\nchip_xywh after round: {_chip_xywh_2}\n')
+
+
+@PIPELINES.register_module()
+class ResizeChipsV1v3(Resize):  # hc-y_add0501:
+    """hc-y_add0501:cluster to generate chips based on det_result of last frame, 
+        crop chips from original image of current frame, resize them and append to list;"""
+
+    def _cluster_gt_bboxes_ndarray(self, p_bboxes, img_wh):
+        """hc-y_write0503:基于 DensityPeakCluster 生成 small objects 的聚集区域;
+        注:数据在 ndarray 和 Torch.Tensor 这两种形式下的有效数字位数会不一样, e.g., p_rho 的值会有差异;
+
+        Args:
+            p_bboxes (ndarray): gt bboxes with shape (N, 4) in (x1, y1, x2, y2) format;
+            img_wh (Tuple): width and height of original image;
+
+        Returns:
+            cluster_label (ndarray): with shape (N, 2), which cluster each gt bbox belongs.
+                        一个用于指示划分到了哪个簇, 一个用于指示是否是簇中心;
+            chips_ltrb (ndarray): with shape (<=3,4), 生成的原始 chips 参数;
+            chips_ltrb_expand_new (v): with shape (<=3,4), 过滤掉被其它 chips_expand 所包含
+                        的以及所包含 objects 数量少于3的 chips 后, 剩余 chips 所对应的 chips_expand 参数;
+        """
+        p_bboxes = p_bboxes.cpu().numpy()
+        num_p = len(p_bboxes)
+        # Step 1. compute dist_obj (distance) between all gt bboxes, and adjust the value interval from [-1,1] to [0,2] via (1. - giou);
+        bboxes1_ctr_xy = (p_bboxes[..., :2] + p_bboxes[..., 2:]) / 2
+        dist_obj = np.power(bboxes1_ctr_xy[..., :, None, :] - bboxes1_ctr_xy[..., None, :, :], 2.).sum(axis=-1)  # ctr_xy_dist
+
+        # Step 2. select the \k smallest dist_obj as candidates, and compute the mean and std, set mean + std * 0.8 as the dist_obj threshold (cuttoff_distance);
+        # selectable_k = min(int(num_p * 2), 36)  # 超参数, 待调节;
+        selectable_k = int(num_p * 2)
+        triu_inds = np.triu_indices(num_p, 1)
+        candidate_dist_obj = np.sort(dist_obj[triu_inds[0], triu_inds[1]])[:selectable_k]
+        candidate_dist_obj_thr = candidate_dist_obj.mean() + candidate_dist_obj.std() * 1.2  # 超参数, 待调节; 该参数会影响到 Step 6 中各个点划分簇的先后顺序; * 1.05
+        # Step 3. compute local density \rho for each gt bbox; 使用了 gaussian kernel 连续型密度;
+        _p_rho = np.exp(-np.square(dist_obj / candidate_dist_obj_thr)).sum(axis=1) - 1.
+        p_rho = (np.exp(-np.square(dist_obj / candidate_dist_obj_thr)) * (dist_obj <= candidate_dist_obj_thr)).sum(axis=1) - 1.  # 减去1是因为不包括与其自身之间的dist_obj
+        # Step 4. compute high local density distance \sigma for each gt bbox;
+        # hld_mask = np.tile(p_rho, (num_p,1)) > np.repeat(p_rho, num_p).reshape(-1, num_p)
+        hld_mask = np.tile(p_rho, (num_p,1)) > np.tile(p_rho, (num_p,1)).T
+        p_sigma = (hld_mask * dist_obj + ~hld_mask * dist_obj.max()).min(axis=1)
+        p_sigma[p_rho.argmax()] = dist_obj.max()  # 对于最大局部密度点, 设置 \sigma 为 dist_obj 的最大值dist_obj.max()
+        # Step 5. determine the cluster center according to \rho and \sigma;
+        # cluster_1st = np.argsort(p_rho * p_sigma)[::-1][:3]
+        _cluster_1st = np.argsort(p_rho * p_sigma)[::-1][:5]  # 依据 (p_rho * p_sigma) 从高到低, 预设 5 个簇中心, 但最终至多保留 3 个簇中心
+        cluster_dist_obj_thr = candidate_dist_obj_thr * 3.2  # 超参数, 待调节; 该参数会影响到 Step 6 中各个点是否会被划分入簇;
+        cluster_1st = []
+        for _idx in range(len(_cluster_1st)):  # 如果某个簇中心可以被划分到另一个簇中心 (p_rho * p_sigma) 值比其高的簇中, 则移除该簇中心;
+            if _idx == 0 or dist_obj[_cluster_1st[_idx], _cluster_1st[:_idx]].min() > cluster_dist_obj_thr:
+                cluster_1st.append(_cluster_1st[_idx])
+        cluster_label = np.zeros((num_p, 2), dtype=np.int64)
+        if len(cluster_1st) == 0:
+            return cluster_label
+        else:
+            cluster_1st = cluster_1st[:3]
+        cluster_label[cluster_1st, 0] = np.arange(len(cluster_1st)) + 1
+        cluster_label[cluster_1st, 1] = 1  # 簇中心
+        # Step 6. cluster other gt boxes to the cluster center;
+        # 方式一: 依据局部密度 $rho$ 从高到低地给各个点划分簇, 归属于距离最近的高密度点所在的簇;
+        p_rho_sorted_ind = np.argsort(_p_rho)[::-1]  # 使用 _p_rho 而不是 p_rho 可以避免 p_rho 值等于零时没法排序;
+        p_rho_clustered_ind = [] + cluster_1st  # sid23_fid213_cls_euc_3cluster.jpg
+        for _sorted_ind in p_rho_sorted_ind:
+            if cluster_label[_sorted_ind, 0] == 0:
+                _argmin_dist_obj = dist_obj[_sorted_ind, p_rho_clustered_ind].argmin(axis=0)
+                _min_dist_obj = dist_obj[_sorted_ind, p_rho_clustered_ind][_argmin_dist_obj]
+                # 对于除 traffic_light 之外的其它类别, 略; 对于 traffic_light 类别, 略; 对于不区分类别, giou:*1.0, diouv:*1.0;
+                if _min_dist_obj <= cluster_dist_obj_thr:
+                    cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]
+                # cluster_label[_sorted_ind, 0] = cluster_label[p_rho_clustered_ind[_argmin_dist_obj], 0]  # 不加限制地对所有点都划分入簇, tag:all
+                p_rho_clustered_ind.append(_sorted_ind)
+
+        # 计算属于同一簇的 objects 的包围框
+        num_per_cluster, num_per_chip = [], []
+        chips_ltrb_list = []
+        for _cluster_id in range(1, len(cluster_1st)+1):
+            _ind_cluster = np.where(cluster_label[:, 0] == _cluster_id)[0]
+            num_per_cluster.append(len(_ind_cluster))
+            if len(_ind_cluster) == 1:
+                chips_ltrb_list.append(p_bboxes[_ind_cluster[0], :])
+            else:
+                chips_ltrb_list.append(np.concatenate((p_bboxes[_ind_cluster, :2].min(axis=0), p_bboxes[_ind_cluster, 2:].max(axis=0)),-1))
+        chips_ltrb = np.stack(chips_ltrb_list, axis=0)
+        chips_ltrb[:, [0, 2]] *= img_wh[0]
+        chips_ltrb[:, [1, 3]] *= img_wh[1]
+        chips_xywh_ = xyxy2xywh(chips_ltrb)
+        chips_xywh_[:, 2:] += np.tile(chips_xywh_[:, 2:].min(axis=1, keepdims=True) * 0.4, (1,2))  # 超参数, 待调节;
+        # chips_ltrb_expand = xywh2xyxy(chips_xywh_)
+        # clip_coords(chips_ltrb_expand, (img_wh[1],img_wh[0]))
+
+        if len(chips_ltrb) > 1:
+            iof_chips_ = bbox_overlaps(chips_ltrb, xywh2xyxy(chips_xywh_), mode='iof', is_aligned=False)
+            iof_chips_ = iof_chips_ - np.diagflat(np.diag(iof_chips_))
+            chips_merge_tag = (iof_chips_.argmax(axis=1) + 1) * (iof_chips_.max(axis=1) > 0.95)  # chips_merge_id >=1 的 chip_ltrb 可以被合并;
+            _chip_id_exclude, chips_ltrb_new = [], []
+            for _chip_id in range(len(chips_ltrb)):  # 当前的 chip_ltrb
+                if _chip_id in _chip_id_exclude:
+                    continue
+                _chip_id_merged = np.where(chips_merge_tag == _chip_id + 1)[0]  # 被 merged 的那个 chip_ltrb
+                if len(_chip_id_merged) == 0 and num_per_cluster[_chip_id] > 2:
+                    chips_ltrb_new.append(chips_ltrb[_chip_id])
+                elif len(_chip_id_merged) == 1 and num_per_cluster[_chip_id]+num_per_cluster[_chip_id_merged[0]] > 2:
+                    chip_ltrb_new = np.stack((chips_ltrb[_chip_id], chips_ltrb[_chip_id_merged[0]]), axis=0)
+                    chip_ltrb_new = np.concatenate((chip_ltrb_new[:, :2].min(axis=0), chip_ltrb_new[:, 2:].max(axis=0)),-1)
+                    chips_ltrb_new.append(chip_ltrb_new)
+                    _chip_id_exclude.append(_chip_id_merged)
+                elif len(_chip_id_merged) > 1 and num_per_cluster[_chip_id]+sum([num_per_cluster[_val] for _val in _chip_id_merged]) > 2:
+                    chip_ltrb_new = np.concatenate((chips_ltrb[_chip_id][None,:], chips_ltrb[_chip_id_merged]), axis=0)
+                    chip_ltrb_new = np.concatenate((chip_ltrb_new[:, :2].min(axis=0), chip_ltrb_new[:, 2:].max(axis=0)),-1)
+                    chips_ltrb_new.append(chip_ltrb_new)
+                    _chip_id_exclude.extend([_val for _val in _chip_id_merged])
+            if len(chips_ltrb_new) > 0:
+                chips_xywh_new_ = xyxy2xywh(np.stack(chips_ltrb_new, axis=0))
+                chips_xywh_new_[:, 2:] += np.tile(chips_xywh_new_[:, 2:].min(axis=1, keepdims=True) * 0.4, (1,2))  # 超参数, 待调节;
+            else:
+                chips_xywh_new_ = None
+        else:
+            if num_per_cluster[0] > 2:
+                chips_xywh_new_ = chips_xywh_
+            else:
+                chips_xywh_new_ = None
+        if chips_xywh_new_ is not None:
+            chips_ltrb_expand_new = xywh2xyxy(chips_xywh_new_)
+            clip_coords(chips_ltrb_expand_new, (img_wh[1],img_wh[0]))
+        else:
+            chips_ltrb_expand_new = None
+
+        return chips_ltrb_expand_new  # cluster_label, chips_ltrb, chips_ltrb_expand_new
+
+
+    def _resize_img(self, results):
+        """Resize images with ``results['scale']``."""
+        det_result = results.pop('det_result')
+        if len(det_result) > 0:
+            # lf: last frame; cf: current frame; nf: next frame;
+            # chips_lf = self._cluster_gt_bboxes_ndarray(det_result[0]['det_bbox'][:, :4], det_result[0]['img_shape'][:2])
+            chips_lf = np.array([[50.,50.,500.,500.],[100.,100.,800.,800.]])
+        else:
+            chips_lf = None
+
+        for key in results.get('img_fields', ['img']):
+            if self.keep_ratio:
+                img, scale_factor = mmcv.imrescale(
+                    results[key],
+                    results['scale'],
+                    return_scale=True,
+                    backend=self.backend)
+                # the w_scale and h_scale has minor difference
+                # a real fix should be done in the mmcv.imrescale in the future
+                new_h, new_w = img.shape[:2]
+                h, w = results[key].shape[:2]
+                w_scale = new_w / w
+                h_scale = new_h / h
+            else:
+                img, w_scale, h_scale = mmcv.imresize(
+                    results[key],
+                    results['scale'],
+                    return_scale=True,
+                    backend=self.backend)
+            scale_factor = np.array([w_scale, h_scale, w_scale, h_scale], dtype=np.float32)
+
+            chips_fields = []
+            if chips_lf is not None:
+                img0 = results[key]
+                for i in range(len(chips_lf)):
+                    x1a0,y1a0,x2a0,y2a0 = (int(_val) for _val in chips_lf[i])
+                    chip_img0 = img0[y1a0:y2a0, x1a0:x2a0]
+                    if self.keep_ratio:
+                        chip_img, chip_scale_factor = mmcv.imrescale(
+                            chip_img0,
+                            results['scale'],
+                            return_scale=True,
+                            backend=self.backend)
+                        chip_new_h, chip_new_w = chip_img.shape[:2]
+                        chip_h, chip_w = chip_img0.shape[:2]
+                        chip_w_scale = chip_new_w / chip_w
+                        chip_h_scale = chip_new_h / chip_h
+                    else:
+                        chip_img, chip_w_scale, chip_h_scale = mmcv.imresize(
+                            chip_img0,
+                            results['scale'],
+                            return_scale=True,
+                            backend=self.backend)
+                    chip_scale_factor = np.array(
+                        [chip_w_scale, chip_h_scale, chip_w_scale, chip_h_scale], dtype=np.float32)
+                    chip_fields = dict(cimg=chip_img, c_ltrb=(x1a0,y1a0,x2a0,y2a0), img_shape= \
+                        chip_img.shape, pad_shape=chip_img.shape, scale_factor= chip_scale_factor)
+                    chips_fields.append(chip_fields)
+
+            results['chips_fields'] = chips_fields
+            results[key] = img
+
+            results['img_shape'] = img.shape
+            # in case that there is no padding
+            results['pad_shape'] = img.shape
+            results['scale_factor'] = scale_factor
+            results['keep_ratio'] = self.keep_ratio
+
+
+@PIPELINES.register_module()
+class PadChipsV1v1(Pad):  # hc-y_add0502:
+    """hc-y_add0502:Pad chips;"""
+
+    def _pad_img(self, results):
+        """Pad images according to ``self.size``."""
+        pad_val = self.pad_val.get('img', 0)
+        for key in results.get('img_fields', ['img']):
+            if self.pad_to_square:
+                max_size = max(results[key].shape[:2])
+                self.size = (max_size, max_size)
+            if self.size is not None:
+                padded_img = mmcv.impad(
+                    results[key], shape=self.size, pad_val=pad_val)
+                for chip_fields in results.get('chips_fields', []):
+                    chip_img_padded = mmcv.impad(chip_fields['cimg'], shape=self.size, pad_val=pad_val)
+                    chip_fields['cimg'] = chip_img_padded
+                    chip_fields['img_shape'] = chip_img_padded.shape
+            elif self.size_divisor is not None:
+                padded_img = mmcv.impad_to_multiple(
+                    results[key], self.size_divisor, pad_val=pad_val)
+                for chip_fields in results.get('chips_fields', []):
+                    raise NotImplementedError('TODO.')
+            results[key] = padded_img
+        results['pad_shape'] = padded_img.shape
+        results['pad_fixed_size'] = self.size
+        results['pad_size_divisor'] = self.size_divisor
 
 
 @PIPELINES.register_module()

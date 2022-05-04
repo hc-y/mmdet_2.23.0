@@ -5,6 +5,9 @@ output mAP60,70,80,90;
 train YOLOF on Argoverse-HD dataset;
 
 
+python tools/train.py configs/yolox/yolox_s_8x8_300e_argoverse.py --resume-from work_dirs/yolox_coco/yolox_s_8x8_300e_coco_20211121_095711-4592a793.pth
+
+python tools/train.py configs/yolox/yolox_s_8x8_rf300e_argoverse.py
 
 python tools/analysis_tools/analyze_logs.py plot_curve work_dirs/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_12301733/20211230_173326.log.json --keys loss_cls loss_bbox loss_centerness --legend loss_cls loss_bbox loss_centerness
 

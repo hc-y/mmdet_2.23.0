@@ -40,6 +40,7 @@ from .yolo_head import YOLOV3Head
 from .yolof_head import YOLOFHead
 from .yolox_head import YOLOXHead
 from .yolof_headv1 import YOLOFHeadV1v1, YOLOFHeadV1v2
+from .yolox_headv1 import YOLOXHeadV1v1
 
 __all__ = [
     'AnchorFreeHead', 'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption',
@@ -54,5 +55,5 @@ __all__ = [
     'SOLOHead', 'DecoupledSOLOHead', 'CenterNetHead', 'YOLOXHead',
     'DecoupledSOLOLightHead', 'LADHead', 'TOODHead', 'MaskFormerHead',
     'Mask2FormerHead',
-    'YOLOFHeadV1v1', 'YOLOFHeadV1v2'
+    'YOLOFHeadV1v1', 'YOLOFHeadV1v2', 'YOLOXHeadV1v1'
 ]

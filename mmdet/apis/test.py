@@ -26,9 +26,29 @@ def single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     flag_show_result = 'Default'
     flag_show_result = 'labels_pred'
+    data_loader.dataset.det_results = []  # hc-y_add0501:供 mmdet/datasets/custom.py def prepare_test_img(self, idx) 使用
     for i, data in enumerate(data_loader):
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
+
+        if isinstance(result, tuple):  # hc-y_add0501:
+            result_tensor = result[1]
+            result = result[0]
+            img_metas = data['img_metas'][0].data[0]
+            data['img'][0].data[0] = torch.stack([_chips[0] for _chips in data['img'][0].data[0]], dim=0)
+            for j, img_meta in enumerate(img_metas):
+                det_bboxes, det_labels = result_tensor[j]
+                if isinstance(det_bboxes, torch.Tensor):
+                    det_bboxes = det_bboxes.detach().cpu().numpy()
+                    det_labels = det_labels.detach().cpu().numpy()
+                det_result = dict()
+                det_result['image_id'] = data_loader.dataset.img_ids[i+j]  # 参考 mmdet/datasets/coco.py def _det2json(self, results)
+                det_result['sid'] = data_loader.dataset.data_infos[i+j]['sid']
+                det_result['fid'] = data_loader.dataset.data_infos[i+j]['fid']
+                det_result['det_bbox'] = det_bboxes#.tolist()  # (x1,y1,x2,y2)
+                det_result['det_label'] = det_labels#.tolist()  # det_result['det_label']是 mmdetection 加载转化后的 label, 而不是 .json 中的 'category_id'
+                det_result['img_shape'] = img_meta['ori_shape']
+                data_loader.dataset.det_results.append(det_result)
 
         if flag_show_result == 'labels_pred':
             iter_idx = i  # hc-y_add0121:

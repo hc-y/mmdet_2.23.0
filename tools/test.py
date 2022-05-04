@@ -209,6 +209,8 @@ def main():
         dataset,
         samples_per_gpu=samples_per_gpu,
         workers_per_gpu=cfg.data.workers_per_gpu,
+        # samples_per_gpu=1,
+        # workers_per_gpu=0,
         dist=distributed,
         shuffle=False)
 
