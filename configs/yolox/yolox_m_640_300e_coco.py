@@ -8,14 +8,14 @@ model = dict(
     input_size=img_scale,
     random_size_range=(15, 25),
     random_size_interval=10,
-    backbone=dict(type='CSPDarknet', deepen_factor=0.33, widen_factor=0.5),
+    backbone=dict(type='CSPDarknet', deepen_factor=0.67, widen_factor=0.75),
     neck=dict(
         type='YOLOXPAFPN',
-        in_channels=[128, 256, 512],
-        out_channels=128,
-        num_csp_blocks=1),
+        in_channels=[192, 384, 768],
+        out_channels=192,
+        num_csp_blocks=2),
     bbox_head=dict(
-        type='YOLOXHead', num_classes=80, in_channels=128, feat_channels=128),
+        type='YOLOXHead', num_classes=80, in_channels=192, feat_channels=192),
     train_cfg=dict(assigner=dict(type='SimOTAAssigner', center_radius=2.5)),
     # In order to align the source code, the threshold of the val phase is
     # 0.01, and the threshold of the test phase is 0.001.
@@ -86,8 +86,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=8,
-    workers_per_gpu=4,
+    samples_per_gpu=6,
+    workers_per_gpu=6,
     persistent_workers=True,
     train=train_dataset,
     val=dict(
@@ -105,7 +105,7 @@ data = dict(
 # default 8 gpu
 optimizer = dict(
     type='SGD',
-    lr=0.01*4*8/(8*8),  # hc-y_modify0420:原始为lr=0.01 with num_GPU=8, samles_per_gpu=8;
+    lr=0.01*4*6/(8*8),  # hc-y_modify0420:原始为lr=0.01 with num_GPU=8, samles_per_gpu=8;
     momentum=0.9,
     weight_decay=5e-4,
     nesterov=True,

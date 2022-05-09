@@ -20,8 +20,9 @@
                 // "--gpus", "0",
                 // "--gpu-ids", "7",
                 // for debugging mmdet tools/test.py
-                "configs/yolox/yolox_s_8x8_300e_argoverse.py",
-                "work_dirs/yolox_s_8x8_rf300e_argoverse_05042135/latest.pth",
+                "configs/yolox/yolox_s_8x8_300e_coco.py",
+                // "configs/yolox/yolox_s_8x8_300e_argoverse.py",
+                // "work_dirs/yolox_s_8x8_rf300e_argoverse_05042135/latest.pth",
                 // "configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd_640.py",
                 // "work_dirs_poc_archive/yolof_r50_c5_8x8_1x_argoverse_hd_poc_01071635/latest.pth",
                 // "configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd.py",
@@ -29,7 +30,7 @@
                 // "configs/fcos/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640.py",
                 // "work_dirs_640_archive/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640_01080015/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640.py",
                 // "work_dirs_640_archive/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640_01080015/epoch_12.pth",
-                "--eval", "bbox",
+                // "--eval", "bbox",
                 // "--eval-options", "classwise=True"
                 // for debugging mmdet demo/image_demo.py
                 // "./my_workspace/demo-test/ring_front_center_315984811296183496.jpg",

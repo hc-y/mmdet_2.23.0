@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import math
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -57,8 +58,8 @@ class YOLOXHeadV1v1(YOLOXHead):
         """
         assert len(cls_scores) == len(bbox_preds) == len(objectnesses)
         cfg = self.test_cfg if cfg is None else cfg
-        scale_factors = [img_metas[0]['scale_factor'], ] + [
-            chip_field['scale_factor'] for chip_field in img_metas[0]['chips_fields']]  # hc-y_modify0502:
+        scale_factors = np.array([img_metas[0]['scale_factor'], ] + [
+            chip_field['scale_factor'] for chip_field in img_metas[0]['chips_fields']])  # hc-y_modify0502:
 
         num_chips = cls_scores[0].size(0)  # hc-y_modify0502:
         featmap_sizes = [cls_score.shape[2:] for cls_score in cls_scores]
