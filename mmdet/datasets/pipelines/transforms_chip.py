@@ -260,13 +260,15 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
     """hc-y_add0501:cluster to generate chips based on det_result of last frame, 
         crop chips from original image of current frame, resize them and append to list;"""
 
-    def _cluster_gt_bboxes_ndarray(self, p_bboxes, img_wh):
+    def _cluster_gt_bboxes_ndarray(self, _p_bboxes, img_wh, score_thr=0.3):
         """hc-y_write0503:基于 DensityPeakCluster 生成 small objects 的聚集区域;
         注:数据在 ndarray 和 Torch.Tensor 这两种形式下的有效数字位数会不一样, e.g., p_rho 的值会有差异;
 
         Args:
+            _p_bboxes (ndarray): gt bboxes with shape (N, 5) in (x1, y1, x2, y2, score) format;
             p_bboxes (ndarray): gt bboxes with shape (N, 4) in (x1, y1, x2, y2) format;
             img_wh (Tuple): width and height of original image;
+            score_thr (float): Minimum score of bboxes to be clustered. Default: 0.3.
 
         Returns:
             cluster_label (ndarray): with shape (N, 2), which cluster each gt bbox belongs.
@@ -275,8 +277,14 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
             chips_ltrb_expand_new (v): with shape (<=3,4), 过滤掉被其它 chips_expand 所包含
                         的以及所包含 objects 数量少于3的 chips 后, 剩余 chips 所对应的 chips_expand 参数;
         """
-        p_bboxes = p_bboxes.cpu().numpy()
+        high_score_inds = np.where(_p_bboxes[:, 4] > score_thr)[0]  # 0.3, 0.2; 参考 mmdet/models/detectors/base.py def show_result(score_thr=0.3);
+        _p_bboxes_xywh = xyxy2xywhn(_p_bboxes[high_score_inds, :4], w=img_wh[0], h=img_wh[1])
+        _sm_obj_mask = _p_bboxes_xywh[:, 2] * _p_bboxes_xywh[:, 3] < 0.01  # 中小目标的面积阈值, 根据数据集及应用场景而设定, 高于该值的目标无需crop放大;
+        p_bboxes = xywh2xyxy(_p_bboxes_xywh[_sm_obj_mask])
+        # p_bboxes = p_bboxes.cpu().numpy()
         num_p = len(p_bboxes)
+        if num_p <= 2:
+            return None
         # Step 1. compute dist_obj (distance) between all gt bboxes, and adjust the value interval from [-1,1] to [0,2] via (1. - giou);
         bboxes1_ctr_xy = (p_bboxes[..., :2] + p_bboxes[..., 2:]) / 2
         dist_obj = np.power(bboxes1_ctr_xy[..., :, None, :] - bboxes1_ctr_xy[..., None, :, :], 2.).sum(axis=-1)  # ctr_xy_dist
@@ -305,7 +313,7 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
                 cluster_1st.append(_cluster_1st[_idx])
         cluster_label = np.zeros((num_p, 2), dtype=np.int64)
         if len(cluster_1st) == 0:
-            return cluster_label
+            return None
         else:
             cluster_1st = cluster_1st[:3]
         cluster_label[cluster_1st, 0] = np.arange(len(cluster_1st)) + 1
@@ -387,10 +395,38 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
         det_result = results.pop('det_result')
         if len(det_result) > 0:
             # lf: last frame; cf: current frame; nf: next frame;
-            # chips_lf = self._cluster_gt_bboxes_ndarray(det_result[0]['det_bbox'][:, :4], det_result[0]['img_shape'][:2])
-            chips_lf = np.array([[50.,50.,500.,500.],[100.,100.,800.,800.]])
-        else:
-            chips_lf = None
+            chips_lf = self._cluster_gt_bboxes_ndarray(det_result[0]['det_bbox'], det_result[0]['img_shape'][:2][::-1], score_thr=0.3)
+            if False:
+            # if True:
+                det_bbox, det_label = det_result[0]['det_bbox'], det_result[0]['det_label']
+                from pathlib import Path
+                path_to_tmp = Path('./my_workspace/tmp/')
+                path_to_img = results['filename']
+                img_wh = det_result[0]['img_shape'][:2][::-1]
+                high_score_inds = np.where(det_bbox[:, 4] > 0.2)[0]  # 0.3, 0.2; mmdet/models/detectors/base.py def show_result(score_thr=0.3)
+                _p_bboxes_xywh = xyxy2xywhn(det_bbox[high_score_inds, :4], w=img_wh[0], h=img_wh[1])
+                _sm_obj_mask = _p_bboxes_xywh[:, 2] * _p_bboxes_xywh[:, 3] < 0.01  # 中小目标的面积阈值, 根据数据集及应用场景而设定, 高于该值的目标无需crop放大;
+                bbox_vis = np.concatenate((_p_bboxes_xywh[_sm_obj_mask], det_bbox[high_score_inds[_sm_obj_mask], 4:5]), -1)
+                label_vis = det_label[high_score_inds[_sm_obj_mask]]
+                l_dets = np.concatenate((np.zeros_like(label_vis[:,None]), label_vis[:,None], bbox_vis), -1)
+                from tools.plots import plot_images_v1
+                cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
+                plot_images_v1(None, l_dets, (path_to_img, ), path_to_tmp / f'img_merged1_sm.jpg', cls_names, None, 'original_image')
+                from PIL import Image
+                from tools.focus_argoverse_dataset import DashedImageDraw
+                img_src = Image.open(path_to_tmp / f'img_merged1.jpg')
+                img_src_draw = DashedImageDraw(img_src)
+                if chips_lf is not None:
+                    for _chip_ltrb_expand_new in chips_lf:
+                        img_src_draw.dashed_rectangle(_chip_ltrb_expand_new, dash=(8,8), outline=(255,255,255), width=3)
+                img_src.save(path_to_tmp / f"img_merged1_cls_euc_3cluster.jpg")
+            # chips_lf = np.array([[50.,50.,500.,500.],[100.,100.,800.,800.]])
+        else:  # 对于 img_info['fid'] == 0 的 frame, 手动选取一个中心区域得到一个 chip;
+            chip_xywh = (0.5, 0.5, 0.5, 0.5)
+            chips_lf = xywh2xyxy(np.array([chip_xywh]))
+            chips_lf[:, 0::2] *= results['ori_shape'][1]
+            chips_lf[:, 1::2] *= results['ori_shape'][0]
+            # chips_lf = None
 
         for key in results.get('img_fields', ['img']):
             if self.keep_ratio:
@@ -473,7 +509,7 @@ class PadChipsV1v1(Pad):  # hc-y_add0502:
                 padded_img = mmcv.impad_to_multiple(
                     results[key], self.size_divisor, pad_val=pad_val)
                 for chip_fields in results.get('chips_fields', []):
-                    raise NotImplementedError('TODO.')
+                    raise NotImplementedError('hc-y_TODO.')
             results[key] = padded_img
         results['pad_shape'] = padded_img.shape
         results['pad_fixed_size'] = self.size

@@ -24,6 +24,12 @@ class ArgoverseDataset(CocoDataset):
 
     CLASSES = ('person',  'bicycle',  'car',  'motorcycle',  'bus',  'truck',  
                 'traffic_light',  'stop_sign')
+    
+    PALETTE = [(255, 56, 56), (255, 157, 151), (255, 112, 31), (255, 178, 29),
+               (207, 210, 49), (72, 249, 10), (146, 204, 23), (61, 219, 134),
+               (26, 147, 52), (0, 212, 187), (44, 153, 168), (0, 194, 255),
+               (52, 69, 147), (100, 115, 255), (0, 24, 236), (132, 56, 255),
+               (82, 0, 133), (203, 56, 255), (255, 149, 200), (255, 55, 199)]
 
     def load_annotations(self, ann_file):
         """Load annotation from COCO style annotation file.
@@ -49,8 +55,8 @@ class ArgoverseDataset(CocoDataset):
         # hc-y_note1231:只采样出少量的图片用于训练和评估;
         if 'train.json' in ann_file:
             self.img_ids = self.img_ids[::4]  # './../datasets/Argoverse-1.1/annotations/train.json' 39384 images
-        elif 'val.json' in ann_file:
-            self.img_ids = self.img_ids[::5]  # './../datasets/Argoverse-1.1/annotations/val.json' 15062 images
+        # elif 'val.json' in ann_file:
+        #     self.img_ids = self.img_ids[::500]  # './../datasets/Argoverse-1.1/annotations/val.json' 15062 images
         for i in self.img_ids:
             info = self.coco.load_imgs([i])[0]
             info['filename'] = seq_dirs[info['sid']] + '/' + info['name']  # hc-y_modify1031:

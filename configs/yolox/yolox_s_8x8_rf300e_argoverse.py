@@ -1,6 +1,6 @@
 _base_ = ['../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py']
 
-img_scale = (640, 640)  # height, width  # hc-y_modify0420:原始为(640, 640);
+img_scale = (400, 640)  # height, width  # hc-y_modify0420:原始为(640, 640);
 
 # model settings
 model = dict(

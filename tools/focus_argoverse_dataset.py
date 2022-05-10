@@ -726,7 +726,7 @@ def generate_chips_dataset(json_dir):
             path_to_chip.mkdir(parents=True, exist_ok=True)
         img_src = cv2.imread(str(path_to_img))  # HWC BGR
         # lf: last frame; cf: current frame; nf: next frame;
-        # TODO: train时, 可以考虑给 chips_lf 施加一个随机抖动;
+        # hc-y_TODO: train时, 可以考虑给 chips_lf 施加一个随机抖动;
         chips_lf = _img['chips_lft'][0]
         for i in range(len(chips_lf)):
             x1a0,y1a0,x2a0,y2a0 = (int(_val) for _val in chips_lf[0])

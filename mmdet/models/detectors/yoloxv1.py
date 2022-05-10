@@ -48,22 +48,24 @@ class YOLOXV0v1(YOLOX):  # hc-y_add0502:
             cfg_nms['iou_threshold'] = 0.75
             dets, keep = batched_nms(bbox_per_img[:, :4], bbox_per_img[:, 4], label_per_img, cfg_nms)
 
-            # from pathlib import Path
-            # path_to_tmp = Path('./my_workspace/tmp/')
-            # path_to_img = img_meta['filename']
-            # img_hw = img_meta['ori_shape'][:2]
-            # from tools.plots import plot_images_v1
-            # from tools.general import xyxy2xywhn
-            # import numpy as np
-            # bbox_vis, label_vis = result0_per_img[0], result0_per_img[1]
-            # i_c = 0
-            # bbox_vis, label_vis = result_list_per_img[i_c][0], result_list_per_img[i_c][1]
-            # bbox_vis, label_vis = bbox_per_img, label_per_img
-            # bbox_vis, label_vis = dets, label_per_img[keep]
-            # bbox_vis_ = xyxy2xywhn(bbox_vis[:, :4], w=img_hw[1], h=img_hw[0])
-            # l_dets = torch.cat((torch.zeros_like(label_vis[:,None]), label_vis[:,None], bbox_vis_, bbox_vis[:,4:5]), dim=1)
-            # cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
-            # plot_images_v1(None, l_dets.cpu().numpy(), (path_to_img, ), path_to_tmp / f'img_c.jpg', cls_names, None, 'original_image')
+            if False:
+            # if True:
+                from pathlib import Path
+                path_to_tmp = Path('./my_workspace/tmp/')
+                path_to_img = img_meta['filename']
+                img_hw = img_meta['ori_shape'][:2]
+                from tools.plots import plot_images_v1
+                from tools.general import xyxy2xywhn
+                import numpy as np
+                bbox_vis, label_vis = result0_per_img[0], result0_per_img[1]
+                # i_c = 0
+                # bbox_vis, label_vis = result_list_per_img[i_c][0], result_list_per_img[i_c][1]
+                # bbox_vis, label_vis = bbox_per_img, label_per_img
+                # bbox_vis, label_vis = dets, label_per_img[keep]
+                bbox_vis_ = xyxy2xywhn(bbox_vis[:, :4], w=img_hw[1], h=img_hw[0])
+                l_dets = torch.cat((torch.zeros_like(label_vis[:,None]), label_vis[:,None], bbox_vis_, bbox_vis[:,4:5]), dim=1)
+                cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
+                plot_images_v1(None, l_dets.cpu().numpy(), (path_to_img, ), path_to_tmp / f'img_c.jpg', cls_names, None, 'original_image')
             return dets, label_per_img[keep]
 
     def simple_test(self, img, img_metas, rescale=False):
