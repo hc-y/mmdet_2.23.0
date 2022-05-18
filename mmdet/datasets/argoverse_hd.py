@@ -47,10 +47,10 @@ class ArgoverseDataset(CocoDataset):
         data_infos = []
         total_ann_ids = []
         # hc-y_note1231:只采样出少量的图片用于训练和评估;
-        if 'train.json' in ann_file:
-            self.img_ids = self.img_ids[::4]  # './../datasets/Argoverse-1.1/annotations/train.json' 39384 images
-        elif 'val.json' in ann_file:
-            self.img_ids = self.img_ids[::5]  # './../datasets/Argoverse-1.1/annotations/val.json' 15062 images
+        # if 'train.json' in ann_file:
+        #     self.img_ids = self.img_ids[::8]  # './../datasets/Argoverse-1.1/annotations/train.json' 39384 images
+        # elif 'val.json' in ann_file:
+        #     self.img_ids = self.img_ids[::5]  # './../datasets/Argoverse-1.1/annotations/val.json' 15062 images
         for i in self.img_ids:
             info = self.coco.load_imgs([i])[0]
             info['filename'] = seq_dirs[info['sid']] + '/' + info['name']  # hc-y_modify1031:
