@@ -1,6 +1,6 @@
 _base_ = ['../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py']
 
-img_scale = (640, 640)  # height, width  # hc-y_modify0420:原始为(640, 640);
+img_scale = (400, 640)  # height, width  # hc-y_modify0420:原始为(640, 640);
 
 # model settings
 model = dict(
@@ -23,8 +23,8 @@ model = dict(
     test_cfg=dict(score_thr=0.01, nms=dict(type='nms', iou_threshold=0.65)))
 
 # dataset settings
-# data_root = './../datasets/Argoverse-1.1/'
-data_root = './../datasets/Argoverse-HD-mini/'
+data_root = './../datasets/Argoverse-1.1/'
+# data_root = './../datasets/Argoverse-HD-mini/'
 dataset_type = 'ArgoverseDataset'
 
 train_pipeline = [
@@ -102,8 +102,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=4,  # hc-y_modify0420:原始为8;
-    workers_per_gpu=2,  # hc-y_modify0420:原始为4;
+    samples_per_gpu=1,  # hc-y_modify0420:原始为8;
+    workers_per_gpu=0,  # hc-y_modify0420:原始为4;
     persistent_workers=True,
     train=train_dataset,
     val=dict(

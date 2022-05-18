@@ -38,7 +38,7 @@ class LoadAnnotationsWChipsV1(LoadAnnotations):  # hc-y_add0430:
         """
         # lf: last frame; cf: current frame; nf: next frame;
         # chips_lf = np.array(results['img_info']['chips_lft'][0], dtype=np.float32)
-        # TODO: gei chips_lf shijiayigesuijidoudong
+        # hc-y_TODO: 给 chips_lf 施加一个随机抖动
         chips_lf = results['img_info']['chips_lft'][0]
         
         chips_img = []

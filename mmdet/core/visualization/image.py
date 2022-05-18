@@ -100,19 +100,21 @@ def draw_bboxes(ax, bboxes, color='g', alpha=0.8, thickness=2, img_wh=(640,640))
         np_poly = np.array(poly).reshape((4, 2))
         polygons.append(Polygon(np_poly))
     
-    # chip_xywh = (0.5, 0.5, 0.5, 0.5)
-    # hc-y_note0114:imgsz=(1920, 1200), inputsz=(1280, 800), offset_topleft = (1, 0)时, chip_xywh = (0.5, 0.52, 0.5, 0.48) <-- (0.5, 0.5, 0.5, 0.5)
-    chip_xywh = (0.5, 0.52, 0.5, 0.48)
-    # hc-y_note0114:imgsz=(1920, 1200), inputsz=(1024, 640), offset_topleft = (1, 0)时, chip_xywh = (0.5, 0.55, 0.5, 0.5) <-- (0.5, 0.5, 0.5, 0.5)
-    # chip_xywh = (0.5, 0.55, 0.5, 0.5)
-    from tools.general import xywh2xyxy
-    chip_xyxy = xywh2xyxy(np.array([chip_xywh]))[0]
-    chip_xyxy[::2] = chip_xyxy[::2] * img_wh[0]
-    chip_xyxy[1::2] = chip_xyxy[1::2] * img_wh[1]
-    chip_poly = np.array([[chip_xyxy[0], chip_xyxy[1]], [chip_xyxy[0], chip_xyxy[3]],
-                          [chip_xyxy[2], chip_xyxy[3]], [chip_xyxy[2], chip_xyxy[1]]]).reshape((4, 2)).astype(np.int32)
-    polygons.append(Polygon(chip_poly))
-    color.append(color_val_matplotlib((255,255,255)))
+    if False:
+    # if True:
+        chip_xywh = (0.5, 0.5, 0.5, 0.5)
+        # hc-y_note0114:imgsz=(1920, 1200), inputsz=(1280, 800), offset_topleft = (1, 0)时, chip_xywh = (0.5, 0.52, 0.5, 0.48) <-- (0.5, 0.5, 0.5, 0.5)
+        # chip_xywh = (0.5, 0.52, 0.5, 0.48)
+        # hc-y_note0114:imgsz=(1920, 1200), inputsz=(1024, 640), offset_topleft = (1, 0)时, chip_xywh = (0.5, 0.55, 0.5, 0.5) <-- (0.5, 0.5, 0.5, 0.5)
+        # chip_xywh = (0.5, 0.55, 0.5, 0.5)
+        from tools.general import xywh2xyxy
+        chip_xyxy = xywh2xyxy(np.array([chip_xywh]))[0]
+        chip_xyxy[::2] = chip_xyxy[::2] * img_wh[0]
+        chip_xyxy[1::2] = chip_xyxy[1::2] * img_wh[1]
+        chip_poly = np.array([[chip_xyxy[0], chip_xyxy[1]], [chip_xyxy[0], chip_xyxy[3]],
+                            [chip_xyxy[2], chip_xyxy[3]], [chip_xyxy[2], chip_xyxy[1]]]).reshape((4, 2)).astype(np.int32)
+        polygons.append(Polygon(chip_poly))
+        color.append(color_val_matplotlib((255,255,255)))
 
     p = PatchCollection(
         polygons,
@@ -164,12 +166,12 @@ def draw_labels(ax,
             pos[1],
             f'{label_text}',
             bbox={
-                'facecolor': 'black',
+                'facecolor': text_color,  # hc-y_modify0508:原为'black'
                 'alpha': 0.8,
                 'pad': 0.7,
                 'edgecolor': 'none'
             },
-            color=text_color,
+            color='white',  # hc-y_modify0508:原为text_color
             fontsize=font_size_mask,
             verticalalignment='top',
             horizontalalignment=horizontal_alignment)
