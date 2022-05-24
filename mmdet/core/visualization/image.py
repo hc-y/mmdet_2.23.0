@@ -107,7 +107,7 @@ def draw_bboxes(ax, bboxes, color='g', alpha=0.8, thickness=2, img_wh=(640,640))
         # chip_xywh = (0.5, 0.52, 0.5, 0.48)
         # hc-y_note0114:imgsz=(1920, 1200), inputsz=(1024, 640), offset_topleft = (1, 0)时, chip_xywh = (0.5, 0.55, 0.5, 0.5) <-- (0.5, 0.5, 0.5, 0.5)
         # chip_xywh = (0.5, 0.55, 0.5, 0.5)
-        from tools.general import xywh2xyxy
+        from mmdet.utils import xywh2xyxy
         chip_xyxy = xywh2xyxy(np.array([chip_xywh]))[0]
         chip_xyxy[::2] = chip_xyxy[::2] * img_wh[0]
         chip_xyxy[1::2] = chip_xyxy[1::2] * img_wh[1]

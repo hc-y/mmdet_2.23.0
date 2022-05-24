@@ -123,7 +123,7 @@ class YOLOFMBranchV1v1(SingleStageDetector):
             dict[str, Tensor]: A dictionary of loss components.
         """
         super(SingleStageDetector, self).forward_train(img, img_metas)
-        # from tools.general import increment_path, mmdet_imdenormalize
+        # from mmdet.utils import increment_path, mmdet_imdenormalize
         # path_to_tmp = increment_path('/mnt/data1/yuhangcheng/yhc_workspace/mmdet_1213/my_workspace/tmp/', exist_ok=False, mkdir=True)  # server57
         # import cv2
         # cv2.imwrite(str(path_to_tmp / f'img0_resized.jpg'), mmdet_imdenormalize(img[0].cpu().numpy().transpose((1, 2, 0))))

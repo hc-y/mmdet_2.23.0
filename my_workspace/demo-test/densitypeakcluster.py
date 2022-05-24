@@ -378,7 +378,7 @@ def main():
     _ind_cls2_l = np.where(l[:, 0] != 6)[0]  # 除 traffic_light 之外的其它类别
 
     path_to_tmp = Path('./my_workspace/demo-test/')
-    # from tools.plots import plot_images_v1
+    # from mmdet.utils import plot_images_v1
     # plot_images_v1(None, np.concatenate((np.zeros_like(l[l_ind_cls_2][:,0:1]), l[l_ind_cls_2]), -1), (str(path_to_tmp / f'ring_front_center_315984811296183496.jpg'), ), path_to_tmp / f'img_cls2.jpg', cls_names, None, 'original_image')
     # import cv2
     # img_cls2 = cv2.imread(str(path_to_tmp / f'img_cls2.jpg'))[:,:,::-1]  # HWC BGR  --> HWC RGB

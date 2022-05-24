@@ -24,8 +24,8 @@ from pathlib import Path
 import json
 import shutil
 import numpy as np
-from tools.general import xyxy2xywhn, xywh2xyxy, increment_path
-from tools.plots import plot_images_v1
+from mmdet.utils import xyxy2xywhn, xywh2xyxy, increment_path
+from mmdet.utils import plot_images_v1
 
 
 def split_gts_scale_type(json_dir):  # hc-y_add0118:

@@ -26,10 +26,11 @@ from pathlib import Path
 import json
 import shutil
 import numpy as np
+from tqdm import tqdm
 from PIL import Image, ImageDraw, ImageFont
 import math
-from tools.general import xyxy2xywh, xyxy2xywhn, xywh2xyxy, increment_path, clip_coords
-from tools.plots import plot_images_v1
+from mmdet.utils import xyxy2xywh, xyxy2xywhn, xywh2xyxy, increment_path, clip_coords
+from mmdet.utils import plot_images_v1
 from mmdet.core import bbox_cxcywh_to_xyxy
 # from mmdet.core.bbox.iou_calculators import fp16_clamp
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
@@ -367,6 +368,8 @@ def cluster_gt_bboxes_ndarray(p_bboxes, img_wh):
     """
     p_bboxes = p_bboxes.cpu().numpy()
     num_p = len(p_bboxes)
+    if num_p <= 2:
+        return np.zeros((num_p, 2), dtype=np.int64), np.empty((0, 4), dtype=p_bboxes.dtype), None
     # Step 1. compute dist_obj (distance) between all gt bboxes, and adjust the value interval from [-1,1] to [0,2] via (1. - giou);
     bboxes1_ctr_xy = (p_bboxes[..., :2] + p_bboxes[..., 2:]) / 2
     dist_obj = np.power(bboxes1_ctr_xy[..., :, None, :] - bboxes1_ctr_xy[..., None, :, :], 2.).sum(axis=-1)  # ctr_xy_dist
@@ -395,7 +398,7 @@ def cluster_gt_bboxes_ndarray(p_bboxes, img_wh):
             cluster_1st.append(_cluster_1st[_idx])
     cluster_label = np.zeros((num_p, 2), dtype=np.int64)
     if len(cluster_1st) == 0:
-        return cluster_label
+        return cluster_label, np.empty((0, 4), dtype=p_bboxes.dtype), None
     else:
         cluster_1st = cluster_1st[:3]
     cluster_label[cluster_1st, 0] = np.arange(len(cluster_1st)) + 1
@@ -487,6 +490,8 @@ def cluster_gt_bboxes(p_bboxes, img_wh):
                     的以及所包含 objects 数量少于3的 chips 后, 剩余 chips 所对应的 chips_expand 参数;
     """
     num_p = len(p_bboxes)
+    if num_p <= 2:
+        return torch.zeros((num_p, 2), dtype=torch.int64, device=p_bboxes.device), torch.empty((0, 4), dtype=p_bboxes.dtype, device=p_bboxes.device), None
     # Step 1. compute dist_obj (distance) between all gt bboxes, and adjust the value interval from [-1,1] to [0,2] via (1. - giou);
     dist_obj_mode = 'EuclideanDist'
     if dist_obj_mode in ['giou', 'diou']:
@@ -523,7 +528,7 @@ def cluster_gt_bboxes(p_bboxes, img_wh):
             cluster_1st.append(_cluster_1st[_idx])
     cluster_label = torch.zeros((num_p, 2), dtype=torch.int64, device=dist_obj.device)
     if len(cluster_1st) == 0:
-        return cluster_label
+        return cluster_label, torch.empty((0, 4), dtype=p_bboxes.dtype, device=p_bboxes.device), None
     else:
         cluster_1st = cluster_1st[:3]
     cluster_label[cluster_1st, 0] = torch.arange(len(cluster_1st), device=dist_obj.device) + 1
@@ -632,7 +637,7 @@ def inject_chips_params_to_anns(json_dir, flag_img_vis=False):
     # imgs_new = []
     for imgs_per_seq in imgs_per_seqs:
         imgs_per_seq.sort(key=lambda x:x['fid'])  # 依据 _img['fid'] 从小到大对 frame 排序
-        for _img_idx, _img in enumerate(imgs_per_seq):
+        for _img_idx, _img in enumerate(tqdm(imgs_per_seq, desc='Processing %s' % imgs_per_seq[0]['sid'])):
             anns_per_img = [_ann for _ann in a['annotations'] if _ann['image_id'] == _img['id']]
             if len(anns_per_img) == 0:
                 continue
@@ -656,9 +661,9 @@ def inject_chips_params_to_anns(json_dir, flag_img_vis=False):
             cluster_label_ndarray, chips_ltrb_ndarray, chips_ltrb_expand_new_ndarray = cluster_gt_bboxes_ndarray(_gt_bboxes_sm, img_wh)
             cluster_label, chips_ltrb = torch.from_numpy(cluster_label_ndarray), torch.from_numpy(chips_ltrb_ndarray)
             chips_ltrb_expand_new = torch.from_numpy(chips_ltrb_expand_new_ndarray) if chips_ltrb_expand_new_ndarray is not None else chips_ltrb_expand_new_ndarray
-            cluster_label_, chips_ltrb_, chips_ltrb_expand_new_ = cluster_gt_bboxes(_gt_bboxes_sm, img_wh)
-            if len(chips_ltrb) != len(chips_ltrb_) or not torch.all(chips_ltrb == chips_ltrb_):
-                print(f"sid{_img['sid']}_fid{_img['fid']}_cls_euc_3cluster.jpg")
+            # cluster_label_, chips_ltrb_, chips_ltrb_expand_new_ = cluster_gt_bboxes(_gt_bboxes_sm, img_wh)
+            # if len(chips_ltrb) != len(chips_ltrb_) or not torch.all(chips_ltrb == chips_ltrb_):
+                # print(f"sid{_img['sid']}_fid{_img['fid']}_cls_euc_3cluster.jpg")
             
             if flag_img_vis:
                 path_to_img = json_dir.parents[1] / f"images_ann/{a['seq_dirs'][_img['sid']]}/{_img['name']}"
@@ -683,7 +688,7 @@ def inject_chips_params_to_anns(json_dir, flag_img_vis=False):
             
             for _idx_type in range(num_lft_type):
                 _img_idx_nf = _img_idx + _idx_type
-                _fid_nf = _img['fid'] + _idx_type*100
+                _fid_nf = _img['fid'] + _idx_type*1  # hc-y_TODO: *100 改为 *1
                 if _img_idx_nf < len(imgs_per_seq) and imgs_per_seq[_img_idx_nf]['fid'] == _fid_nf:
                     if imgs_per_seq[_img_idx_nf].get('chips_lft', None) is None:
                         imgs_per_seq[_img_idx_nf]['chips_lft'] = [[] for _ in range(num_lft_type)]
@@ -713,7 +718,7 @@ def generate_chips_dataset(json_dir):
     import cv2
     imgs_new, anns_new = [], []
     img_counts, anns_count = 0, 0
-    for _img in a['images']:
+    for _img in tqdm(a['images'], desc='Chips for each Image'):
         anns_per_img = [_ann for _ann in a['annotations'] if _ann['image_id'] == _img['id']]
         if len(anns_per_img) == 0:
             continue
@@ -729,7 +734,7 @@ def generate_chips_dataset(json_dir):
         # hc-y_TODO: train时, 可以考虑给 chips_lf 施加一个随机抖动;
         chips_lf = _img['chips_lft'][0]
         for i in range(len(chips_lf)):
-            x1a0,y1a0,x2a0,y2a0 = (int(_val) for _val in chips_lf[0])
+            x1a0,y1a0,x2a0,y2a0 = (int(_val) for _val in chips_lf[i])
             chip_img = img_src[y1a0:y2a0, x1a0:x2a0]
             gt_bboxes_clipped = _gt_bboxes.copy()
             np.clip(gt_bboxes_clipped[:,0::2], x1a0, x2a0, out=gt_bboxes_clipped[:,0::2])
@@ -793,14 +798,15 @@ def plot_labels_on_img(json_dir, imgs_folder='images'):
 
 
 def main():
-    dir = Path('/home/hustget/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/datasets')
-    # annotations_dir = 'Argoverse-1.1/annotations/'
-    annotations_dir = 'Argoverse-HD-mini/annotations'
-    str_train = 'val'
+    # dir = Path('/home/hustget/hustget_workdir/yuhangcheng/Pytorch_WorkSpace/OpenSourcePlatform/datasets')
+    dir = Path('/media/hustget/HUSTGET/amax/HUSTGET_users/yuhangcheng/OpenSourcePlatform/datasets')
+    annotations_dir = 'Argoverse-1.1/annotations'
+    # annotations_dir = 'Argoverse-HD-mini/annotations'
+    str_train = 'train'
     # plot_labels_on_img(dir / annotations_dir / f"{str_train}*.json", imgs_folder='images')
-    inject_chips_params_to_anns(dir / annotations_dir / f"{str_train}.json", flag_img_vis=False)
-    annotations_dicr_ = annotations_dir + '_focus'
-    generate_chips_dataset(dir / annotations_dicr_ / f"{str_train}_5lft_euc_1.2_3.2.json")
+    inject_chips_params_to_anns(dir / annotations_dir / f"{str_train}.json", flag_img_vis=False)  # 耗时约46min
+    # annotations_dicr_ = annotations_dir + '_focus'
+    # generate_chips_dataset(dir / annotations_dicr_ / f"{str_train}_5lft_euc_1.2_3.2.json")  # 耗时约64min
     # annotations_dir_ = annotations_dir + '_chip'
     # plot_labels_on_img(dir / annotations_dir_ / f"{str_train}*.json", imgs_folder='images_chip')
     print('\nfinish!')

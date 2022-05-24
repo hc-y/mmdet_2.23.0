@@ -11,7 +11,7 @@ from numpy import random
 
 from mmdet.core import PolygonMasks
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
-from tools.general import xyxy2xywh, xyxy2xywhn, xywh2xyxy, increment_path, clip_coords
+from mmdet.utils import xyxy2xywh, xyxy2xywhn, xywh2xyxy, increment_path, clip_coords
 from ..builder import PIPELINES
 from .transforms import Resize, Pad, Normalize
 
@@ -153,11 +153,11 @@ class ResizeChipsV1v2(Resize):  # hc-y_add0105:
                 chip4_list.append(img)
                 chip3_fts_idx.append(None)
             else:
-                # from tools.general import increment_path, xyxy2xywhn
+                # from mmdet.utils import increment_path, xyxy2xywhn
                 # path_to_tmp = increment_path('/mnt/data2/yuhangcheng/mmdet_1213/my_workspace/tmp/', exist_ok=False, mkdir=True)  # server58
                 # path_to_tmp = increment_path('/mnt/data1/yuhangcheng/yhc_workspace/mmdet_1213/my_workspace/tmp/', exist_ok=False, mkdir=True)  # server57
                 # cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
-                # from tools.plots import plot_images_v1
+                # from mmdet.utils import plot_images_v1
                 for j in range(4):
                     labels = None if gt_anns is None else gt_anns.copy()
                     if j == 0:
@@ -409,7 +409,7 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
                 bbox_vis = np.concatenate((_p_bboxes_xywh[_sm_obj_mask], det_bbox[high_score_inds[_sm_obj_mask], 4:5]), -1)
                 label_vis = det_label[high_score_inds[_sm_obj_mask]]
                 l_dets = np.concatenate((np.zeros_like(label_vis[:,None]), label_vis[:,None], bbox_vis), -1)
-                from tools.plots import plot_images_v1
+                from mmdet.utils import plot_images_v1
                 cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
                 plot_images_v1(None, l_dets, (path_to_img, ), path_to_tmp / f'img_merged1_sm.jpg', cls_names, None, 'original_image')
                 from PIL import Image

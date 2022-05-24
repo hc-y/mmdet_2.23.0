@@ -54,8 +54,8 @@ class YOLOXV0v1(YOLOX):  # hc-y_add0502:
                 path_to_tmp = Path('./my_workspace/tmp/')
                 path_to_img = img_meta['filename']
                 img_hw = img_meta['ori_shape'][:2]
-                from tools.plots import plot_images_v1
-                from tools.general import xyxy2xywhn
+                from mmdet.utils import plot_images_v1
+                from mmdet.utils import xyxy2xywhn
                 import numpy as np
                 bbox_vis, label_vis = result0_per_img[0], result0_per_img[1]
                 # i_c = 0
