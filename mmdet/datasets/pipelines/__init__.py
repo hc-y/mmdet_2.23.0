@@ -17,9 +17,9 @@ from .transforms import (Albu, CutOut, Expand, MinIoURandomCrop, MixUp, Mosaic,
 from .loading_chip import (LoadAnnotationsWChipsV1,)
 from .formating_chip import (ImageToTensorChipsV1v1, ImageToTensorChipsV1v2, 
                              DefaultFormatBundleChipsV1v1, DefaultFormatBundleChipsV1v2,
-                             DefaultFormatBundleChipsV1v3)
+                             DefaultFormatBundleChipsV1v3, ImageToTensorChipsV1v3)
 from .transforms_chip import (ResizeChipsV1v1, ResizeChipsV1v2, NormalizeChipsV1v1, 
-                              ResizeChipsV1v3, PadChipsV1v1)
+                              ResizeChipsV1v3, PadChipsV1v1, NormalizeChipsV1v2)
 
 __all__ = [
     'Compose', 'to_tensor', 'ToTensor', 'ImageToTensor', 'ToDataContainer',
@@ -35,5 +35,6 @@ __all__ = [
     'ResizeChipsV1v1', 'ResizeChipsV1v2', 'NormalizeChipsV1v1', 
     'ImageToTensorChipsV1v1', 'ImageToTensorChipsV1v2',
     'DefaultFormatBundleChipsV1v1', 'DefaultFormatBundleChipsV1v2',
-    'LoadAnnotationsWChipsV1', 'ResizeChipsV1v3', 'PadChipsV1v1', 'DefaultFormatBundleChipsV1v3'
+    'LoadAnnotationsWChipsV1', 'ResizeChipsV1v3', 'PadChipsV1v1', 
+    'DefaultFormatBundleChipsV1v3', 'ImageToTensorChipsV1v3', 'NormalizeChipsV1v2',
 ]

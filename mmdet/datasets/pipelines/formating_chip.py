@@ -69,6 +69,38 @@ class ImageToTensorChipsV1v2(ImageToTensor):  # hc-y_add0106:
 
 
 @PIPELINES.register_module()
+class ImageToTensorChipsV1v3(ImageToTensor):  # hc-y_add0601:
+    def __call__(self, results):
+        """Call function to convert image in results to :obj:`torch.Tensor` and
+        transpose the channel order.
+
+        Args:
+            results (dict): Result dict contains the image data to convert.
+
+        Returns:
+            dict: The result dict contains the image converted
+                to :obj:`torch.Tensor` and transposed to (C, H, W) order.
+        """
+        for key in self.keys:
+            img = results[key]
+            if len(img.shape) < 3:
+                img = np.expand_dims(img, -1)
+            if key == 'img':
+                img = np.ascontiguousarray(img.transpose(2, 0, 1))
+                chips_list = [img,]
+                for chip_fields in results.get('chips_fields', []):
+                    _chip = chip_fields.pop('cimg')
+                    if len(_chip.shape) < 3:
+                        _chip = np.expand_dims(_chip, -1)
+                    chips_list.append(np.ascontiguousarray(_chip.transpose(2, 0, 1)))
+
+                results['img'] = DC(to_tensor(chips_list), stack=False)  # hc-y_note0502: num_chips of each image may be different, so set stack=False here;
+            else:
+                results[key] = (to_tensor(img.transpose(2, 0, 1))).contiguous()
+        return results
+
+
+@PIPELINES.register_module()
 class DefaultFormatBundleChipsV1v1(DefaultFormatBundle):  # hc-y_add0105:
     def __call__(self, results):
         """Call function to transform and format common fields in results.

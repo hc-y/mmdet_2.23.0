@@ -393,7 +393,7 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
     def _resize_img(self, results):
         """Resize images with ``results['scale']``."""
         det_result = results.pop('det_result')
-        if len(det_result) > 0:
+        if len(det_result) > 0 and len(det_result[0]['det_bbox']) > 0:
             # lf: last frame; cf: current frame; nf: next frame;
             chips_lf = self._cluster_gt_bboxes_ndarray(det_result[0]['det_bbox'], det_result[0]['img_shape'][:2][::-1], score_thr=0.3)
             if False:
@@ -504,12 +504,18 @@ class PadChipsV1v1(Pad):  # hc-y_add0502:
                 for chip_fields in results.get('chips_fields', []):
                     chip_img_padded = mmcv.impad(chip_fields['cimg'], shape=self.size, pad_val=pad_val)
                     chip_fields['cimg'] = chip_img_padded
-                    chip_fields['img_shape'] = chip_img_padded.shape
+                    chip_fields['pad_shape'] = chip_img_padded.shape
             elif self.size_divisor is not None:
-                padded_img = mmcv.impad_to_multiple(
-                    results[key], self.size_divisor, pad_val=pad_val)
+                # hc-y_note0601:padded_img 和 chip_img_padded 的 shape 不一致时, 则需要进一步的 pad, 使得它们宽高一致; 可参考:
+                # 经过 train_pipeline 之后, 如果同一个 batch 中 img_tensor 的 shape 大小不一致, 则会在 
+                # envs/hcy_mmlab1213/lib/python3.9/site-packages/mmcv/parallel/collate.py 中对 img_tensor 执行 F.pad() 操作使得它们宽高一致;
+                img_hw_max = np.array([results['img_shape'][:2],] + [chip_fields['pad_shape'][:2] for chip_fields in results.get('chips_fields', [])]).max(axis=0)
+                padded_img_hw = tuple(int(np.ceil(_val / self.size_divisor)) * self.size_divisor for _val in img_hw_max)
+                padded_img = mmcv.impad(results[key], shape=padded_img_hw, pad_val=pad_val)
                 for chip_fields in results.get('chips_fields', []):
-                    raise NotImplementedError('hc-y_TODO.')
+                    chip_img_padded = mmcv.impad(chip_fields['cimg'], shape=padded_img_hw, pad_val=pad_val)
+                    chip_fields['cimg'] = chip_img_padded
+                    chip_fields['pad_shape'] = chip_img_padded.shape
             results[key] = padded_img
         results['pad_shape'] = padded_img.shape
         results['pad_fixed_size'] = self.size
@@ -534,6 +540,30 @@ class NormalizeChipsV1v1(Normalize):
         if 'chip4' in results:
             for j in range(len(results['chip4'])):
                 results['chip4'][j] = mmcv.imnormalize(results['chip4'][j], self.mean, self.std, self.to_rgb)
+        results['img_norm_cfg'] = dict(
+            mean=self.mean, std=self.std, to_rgb=self.to_rgb)
+        return results
+
+
+@PIPELINES.register_module()
+class NormalizeChipsV1v2(Normalize):  # hc-y_add0601:
+    def __call__(self, results):
+        """Call function to normalize images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Normalized results, 'img_norm_cfg' key is added into
+                result dict.
+        """
+        for key in results.get('img_fields', ['img']):
+            results[key] = mmcv.imnormalize(results[key], self.mean, self.std,
+                                            self.to_rgb)
+            if key == 'img':
+                for chip_fields in results.get('chips_fields', []):
+                    chip_fields['cimg'] = mmcv.imnormalize(
+                        chip_fields['cimg'], self.mean, self.std, self.to_rgb)
         results['img_norm_cfg'] = dict(
             mean=self.mean, std=self.std, to_rgb=self.to_rgb)
         return results

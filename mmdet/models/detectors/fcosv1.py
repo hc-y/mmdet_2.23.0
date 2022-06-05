@@ -1,21 +1,17 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import random
-
 import torch
-import torch.distributed as dist
-import torch.nn.functional as F
-from mmcv.runner import get_dist_info
-
-from ...utils import log_img_scale
 from mmcv.ops.nms import batched_nms
 from mmdet.core import bbox2result, bbox_overlaps
+from mmdet.utils.general import xyxy2xywh
 from ..builder import DETECTORS
-from .single_stage import SingleStageDetector
-from .yolox import YOLOX
+from .fcos import FCOS
 
 
 @DETECTORS.register_module()
-class YOLOXV0v1(YOLOX):  # hc-y_add0502:
+class FCOSV0v1(FCOS):
+    """Implementation of `FCOS <https://arxiv.org/abs/1904.01355>`_"""
+    # hc-y_add0529:def merge_chips_result(), def simple_test(), def forward_test() 均复制自 mmdet/models/detectors/yoloxv1.py, 一模一样
+
     def merge_chips_result(self, result_list_per_img, img_meta):  # hc-y_add0502:
         if len(result_list_per_img) == 1:
             return result_list_per_img[0]
@@ -35,11 +31,13 @@ class YOLOXV0v1(YOLOX):  # hc-y_add0502:
                     bbox_pred_curchip = result_list_per_img[i_c][0]
                     bbox_pred_otherchip = torch.cat([result0_per_img[0],] + [result_list_per_img[j][0] for j in range(len(chips_ltrb)) if j != i_c and len(result_list_per_img[j][0]) > 0],0)
                     chip_ltrb = torch.tensor([chips_ltrb[i_c]]).to(bbox_pred_curchip.device)
+                    # mask_keep = ((bbox_pred_curchip[:, :4] - chip_ltrb).abs() *2 / (chip_ltrb[:, 2:] - chip_ltrb[:,:2]).repeat(1,2)).min(dim=1)[0] < xxx
                     mask_keep = (bbox_pred_curchip[:, :4] - chip_ltrb).abs().min(dim=1)[0] >= 8  # hc-y_note0602:此行没有写入论文
                     iofs_otherchip, bbox_in = bbox_overlaps(bbox_pred_otherchip[:, :4], chip_ltrb, mode='iof', is_aligned=False, bbox_in=True)
                     mask_truncated = (iofs_otherchip[:, 0] > 0) & (iofs_otherchip[:, 0] < 1.) & (bbox_pred_otherchip[:, 4] > self.test_cfg.score_thr)  # torch.logical_and(iofs_otherchip[:, 0] > 0., iofs_otherchip[:, 0] < 1.)
                     if mask_truncated.sum() > 0:
                         ious_curchip = bbox_overlaps(bbox_pred_curchip[:, :4], bbox_in[mask_truncated, 0], mode='iou', is_aligned=False)
+                        # hc-y_note0602:如果没加 & mask_keep,此方法的局限性在于:如果截断目标在其它patch中没有被检测到, 那么就没法被移除掉; 
                         mask_keep = (ious_curchip.max(dim=1)[0] < 0.9) & mask_keep  # 超参数, 待调节;
                     bbox_per_img.append(result_list_per_img[i_c][0][mask_keep])
                     label_per_img.append(result_list_per_img[i_c][1][mask_keep])
@@ -51,6 +49,7 @@ class YOLOXV0v1(YOLOX):  # hc-y_add0502:
                     label_per_img.append(result_list_per_img[i_c][1])
             bbox_per_img = torch.cat(bbox_per_img, 0)
             label_per_img = torch.cat(label_per_img, 0)
+            # return bbox_per_img, label_per_img
             cfg_nms = self.test_cfg.nms.copy()
             # cfg_nms['iou_threshold'] = 0.75
             dets, keep = batched_nms(bbox_per_img[:, :4], bbox_per_img[:, 4], label_per_img, cfg_nms)
