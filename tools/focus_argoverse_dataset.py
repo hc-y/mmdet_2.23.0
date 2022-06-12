@@ -704,7 +704,7 @@ def inject_chips_params_to_anns(json_dir, flag_img_vis=False):
 
 
 def generate_chips_dataset(json_dir):
-    """hc-y_write0430:读取 annotations_focus/train.json, yiju chips 参数congyuantuzhong crop chu chips shengcheng chips_dataset;
+    """hc-y_write0430:读取 annotations_focus/train.json, 依据 chips 参数从原图中 crop 出 chips 生成 chips_dataset;
 
     Args:
         json_dir (class::Path): ;
@@ -805,10 +805,10 @@ def main():
     str_train = 'train'
     # plot_labels_on_img(dir / annotations_dir / f"{str_train}*.json", imgs_folder='images')
     inject_chips_params_to_anns(dir / annotations_dir / f"{str_train}.json", flag_img_vis=False)  # 耗时约46min
-    # annotations_dicr_ = annotations_dir + '_focus'
-    # generate_chips_dataset(dir / annotations_dicr_ / f"{str_train}_5lft_euc_1.2_3.2.json")  # 耗时约64min
-    # annotations_dir_ = annotations_dir + '_chip'
-    # plot_labels_on_img(dir / annotations_dir_ / f"{str_train}*.json", imgs_folder='images_chip')
+    # annotations_dir_f = annotations_dir + '_focus'
+    # generate_chips_dataset(dir / annotations_dir_f / f"{str_train}_5lft_euc_1.2_3.2.json")  # 耗时约64min
+    # annotations_dir_c = annotations_dir + '_chip'
+    # plot_labels_on_img(dir / annotations_dir_c / f"{str_train}*.json", imgs_folder='images_chip')
     print('\nfinish!')
 
 

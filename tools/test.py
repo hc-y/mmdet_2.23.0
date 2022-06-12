@@ -233,7 +233,7 @@ def main():
     if not distributed:
         model = MMDataParallel(model, device_ids=cfg.gpu_ids)  # hc-y_note1231:指定特定的 GPU
         outputs = single_gpu_test(model, data_loader, args.show, args.show_dir,
-                                  args.show_score_thr)
+                                  args.show_score_thr, args.checkpoint)  # hc-y_add0611:
     else:
         model = MMDistributedDataParallel(
             model.cuda(),

@@ -396,6 +396,9 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
         if len(det_result) > 0 and len(det_result[0]['det_bbox']) > 0:
             # lf: last frame; cf: current frame; nf: next frame;
             chips_lf = self._cluster_gt_bboxes_ndarray(det_result[0]['det_bbox'], det_result[0]['img_shape'][:2][::-1], score_thr=0.3)
+            if chips_lf is not None and len(chips_lf) >= 3:
+                with open('./my_workspace/tmp/chips_lf_le3.txt', 'a') as f:
+                    f.write('%d %d %d %s\n' % (results['img_info']['id'], results['img_info']['sid'], results['img_info']['fid'], results['ori_filename']))
             if False:
             # if True:
                 det_bbox, det_label = det_result[0]['det_bbox'], det_result[0]['det_label']

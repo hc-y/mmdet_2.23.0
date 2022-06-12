@@ -4,6 +4,9 @@ import pickle
 import shutil
 import tempfile
 import time
+import json
+import numpy as np
+from tqdm import tqdm
 
 import mmcv
 import torch
@@ -18,7 +21,7 @@ def single_gpu_test(model,
                     data_loader,
                     show=False,
                     out_dir=None,
-                    show_score_thr=0.3):
+                    show_score_thr=0.3, val_dir=None):
     model.eval()
     results = []
     dataset = data_loader.dataset
@@ -26,7 +29,46 @@ def single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     flag_show_result = 'Default'
     flag_show_result = 'labels_pred'
-    data_loader.dataset.det_results = []  # hc-y_add0501:供 mmdet/datasets/custom.py def prepare_test_img(self, idx) 使用
+    det_results_json = []
+    flag_crp_frame = 'crp_from_lf'
+    if flag_crp_frame == 'crp_from_lf':
+        data_loader.dataset.det_results = []  # hc-y_add0501:供 mmdet/datasets/custom.py def prepare_test_img(self, idx) 使用
+    elif flag_crp_frame == 'crp_from_cf':
+        with open(osp.dirname(val_dir) + '/results_zw_lf.bbox.json', 'r') as f:
+            results_zw_lf = json.load(f)
+        for det_result in results_zw_lf:
+            det_result['det_bbox'] = np.array(det_result['det_bbox'], dtype=np.float32)
+            det_result['det_label'] = np.array(det_result['det_label'], dtype=np.int64)
+        data_loader.dataset.det_results = results_zw_lf
+    elif flag_crp_frame == 'crp_from_gt':
+        flag_val_per_img = False
+        if not flag_val_per_img:
+            with open(osp.dirname(dataset.ann_file) + '/val_per_img.json', 'r') as f:
+                gt_anns_json = json.load(f)
+            for gt_ann in gt_anns_json:
+                gt_ann['det_bbox'] = np.array(gt_ann['det_bbox'], dtype=np.float32)
+                gt_ann['det_label'] = np.array(gt_ann['det_label'], dtype=np.int64)
+            data_loader.dataset.det_results = gt_anns_json
+        else:  # hc-y_write0612:读取 annotations/val.json, 按照每张图片汇总 'annotations' 注释; cost 06:46 mins;
+            gt_anns_json = []
+            for _img in tqdm(dataset.coco.imgs.values(), desc='generate val_per_img.json'):
+                gt_ann = dict()
+                gt_ann['image_id'] = _img['id']
+                gt_ann['sid'] = _img['sid']
+                gt_ann['fid'] = _img['fid']
+                anns_per_img = [_ann for _ann in dataset.coco.anns.values() if _ann['image_id'] == _img['id']]
+                if len(anns_per_img) == 0:
+                    gt_ann['det_bbox'] = []
+                    gt_ann['det_label'] = []
+                else:
+                    _gt_bboxes = np.array([_val['bbox'].copy() + [1.] for _val in anns_per_img], dtype=np.float32)
+                    _gt_bboxes[:, 2:4] += _gt_bboxes[:, :2]  # width,height to bottom right x,y
+                    gt_ann['det_bbox'] = _gt_bboxes.tolist()
+                    gt_ann['det_label'] = [dataset.cat2label[_val['category_id']] for _val in anns_per_img]
+                gt_ann['img_shape'] = (_img['height'], _img['width'], 3)
+                gt_anns_json.append(gt_ann)
+            mmcv.dump(gt_anns_json, osp.dirname(dataset.ann_file) + '/val_per_img.json', indent=4)
+            assert 0, 'finish generating val_per_img.json'
     for i, data in enumerate(data_loader):
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
@@ -48,7 +90,12 @@ def single_gpu_test(model,
                 det_result['det_bbox'] = det_bboxes#.tolist()  # (x1,y1,x2,y2)
                 det_result['det_label'] = det_labels#.tolist()  # det_result['det_label']是 mmdetection 加载转化后的 label, 而不是 .json 中的 'category_id'
                 det_result['img_shape'] = img_meta['ori_shape']
-                data_loader.dataset.det_results.append(det_result)
+                if flag_crp_frame == 'crp_from_lf':
+                    data_loader.dataset.det_results.append(det_result)
+                det_result_json = det_result.copy()
+                det_result_json['det_bbox'] = det_result_json['det_bbox'].tolist()
+                det_result_json['det_label'] = det_result_json['det_label'].tolist()
+                det_results_json.append(det_result_json)
 
         if flag_show_result == 'labels_pred':
             iter_idx = i  # hc-y_add0121:
@@ -124,6 +171,8 @@ def single_gpu_test(model,
 
         for _ in range(batch_size):
             prog_bar.update()
+    outfile_json = '/results_zw_' + flag_crp_frame.split('_')[-1] + '.bbox.json'
+    mmcv.dump(det_results_json, osp.dirname(val_dir) + outfile_json, indent=4)
     return results
 
 
