@@ -55,6 +55,28 @@ class YOLOXV0v1(YOLOX):  # hc-y_add0502:
             # cfg_nms['iou_threshold'] = 0.75
             dets, keep = batched_nms(bbox_per_img[:, :4], bbox_per_img[:, 4], label_per_img, cfg_nms)
 
+            if False:  # for vis_cluster_chips
+                from pathlib import Path
+                path_to_tmp = Path('./my_workspace/tmp_val_cluster_chips/')
+                path_to_img = './my_workspace/tmp_val_cluster_chips/ring_front_center_315984823517285848_src.jpg'
+                img_hw = img_meta['ori_shape'][:2]
+                from mmdet.utils import plot_images_v1
+                from mmdet.utils import xyxy2xywhn
+                import numpy as np
+                # bbox_vis, label_vis = result0_per_img[0], result0_per_img[1]
+                i_c = 0
+                bbox_vis, label_vis = result_list_per_img[i_c][0], result_list_per_img[i_c][1]
+                # bbox_vis, label_vis = torch.cat([_val[0] for _val in result_list_per_img], 0), torch.cat([_val[1] for _val in result_list_per_img], 0)
+                # bbox_vis, label_vis = bbox_per_img, label_per_img
+                # bbox_vis, label_vis = dets, label_per_img[keep]
+                bbox_vis_ = xyxy2xywhn(bbox_vis[:, :4], w=img_hw[1], h=img_hw[0])
+                l_dets = torch.cat((torch.zeros_like(label_vis[:,None]), label_vis[:,None], bbox_vis_, bbox_vis[:,4:5]), dim=1)
+                cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
+                plot_images_v1(None, l_dets.cpu().numpy(), (path_to_img, ), path_to_tmp / f'ring_front_center_315984823517285848_o_c{i_c}.jpg', cls_names, None, 'original_image')
+                import cv2
+                img_output = cv2.imread(str(path_to_tmp / f'ring_front_center_315984823517285848_o_c{i_c}.jpg'))  # HWC BGR
+                cv2.imwrite(str(path_to_tmp / f'ring_front_center_315984823517285848_o_c{i_c}_.jpg'),img_output[chips_ltrb[i_c][1]:chips_ltrb[i_c][3], chips_ltrb[i_c][0]:chips_ltrb[i_c][2]])
+
             if False:
             # if True:
                 from pathlib import Path

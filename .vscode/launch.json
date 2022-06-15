@@ -21,8 +21,8 @@
                 // "--gpu-ids", "7",
                 // for debugging mmdet tools/test.py
                 // "configs/yolox/yolox_l_640_r15e_argoverse.py",
-                "configs/yolox/yoloxv1_l_r15e_argoverse.py",
-                "work_dirs/yolox_l_960_r15e_argoverse_05171128/epoch_290_.pth",
+                // "configs/yolox/yoloxv1_l_r15e_argoverse.py",
+                // "work_dirs/yolox_l_960_r15e_argoverse_05171128/epoch_290_.pth",
                 // "work_dirs/yolox_l_960_r15e_argoverse_05171128/yolox_l_960_r15e_argoverse.py",
                 // "configs/fcos/fcosv1_r50_caffe_fpn_gn-head_r1x_argoverse_640.py",
                 // "work_dirs/fcos_r50_caffe_fpn_gn-head_r1x_argoverse_640_05190938/epoch_12_.pth",
@@ -36,17 +36,17 @@
                 // "configs/fcos/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640.py",
                 // "work_dirs_640_archive/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640_01080015/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640.py",
                 // "work_dirs_640_archive/fcos_r50_caffe_fpn_gn-head_1x_argoverse_hd_640_01080015/epoch_12.pth",
-                "--eval", "bbox",
+                // "--eval", "bbox",
                 // "--eval-options", "classwise=True"
                 // "--show-dir", "yolox_s_8x8_rf300e_argoverse_05042135_results",
                 // for debugging mmdet demo/image_demo.py
                 // "./my_workspace/demo-test/ring_front_center_315984811296183496.jpg",
                 // "./configs/yolof/yolof_r50_c5_8x8_1x_argoverse_hd.py",
                 // "./work_dirs/yolof_r50_c5_8x8_1x_argoverse_hd_12301721/latest.pth", 
-                // "./my_workspace/tmp/chips_lf_le3.txt",
-                // "configs/yolox/yoloxv1_l_r15e_argoverse.py",
-                // "work_dirs/yolox_l_960_r15e_argoverse_05171128/epoch_290_.pth",
-                // "--device", "cuda:0"
+                "work_dirs/yolox_l_960_r15e_argoverse_05171128/val_w_ibs_0.65_results_zw_lf_chips_lf_le3.txt",
+                "configs/yolox/yoloxv1_l_r15e_argoverse.py",
+                "work_dirs/yolox_l_960_r15e_argoverse_05171128/epoch_290_.pth",
+                "--device", "cuda:0"
             ]
         }
     ]

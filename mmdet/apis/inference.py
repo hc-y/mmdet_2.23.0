@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import warnings
 
+import json
 import mmcv
 import numpy as np
 import torch
@@ -132,6 +133,92 @@ def inference_detector(model, imgs):
         data = test_pipeline(data)
         datas.append(data)
 
+    data = collate(datas, samples_per_gpu=len(imgs))
+    # just get the actual data from DataContainer
+    data['img_metas'] = [img_metas.data[0] for img_metas in data['img_metas']]
+    data['img'] = [img.data[0] for img in data['img']]
+    if next(model.parameters()).is_cuda:
+        # scatter to specified GPU
+        data = scatter(data, [device])[0]
+    else:
+        for m in model.modules():
+            assert not isinstance(
+                m, RoIPool
+            ), 'CPU inference with RoIPool is not supported currently.'
+
+    # forward the model
+    with torch.no_grad():
+        results = model(return_loss=False, rescale=True, **data)
+
+    if not is_batch:
+        return results[0]
+    else:
+        return results
+
+
+def inference_detector_vis_cluster_chips(model, imgs):  # hc-y_modify0613:
+    """Inference image(s) with the detector.
+
+    Args:
+        model (nn.Module): The loaded detector.
+        imgs (str/ndarray or list[str/ndarray] or tuple[str/ndarray]):
+           Either image files or loaded images.
+
+    Returns:
+        If imgs is a list or tuple, the same length list type results
+        will be returned, otherwise return the detection results directly.
+    """
+    if isinstance(imgs, (list, tuple)):
+        is_batch = True
+    elif '.txt' in imgs:
+        with open(imgs, 'r') as f:
+            # imgs = ['../datasets/Argoverse-1.1/images/'+x for x in f.read().strip().splitlines() if len(x)]
+            imgs = [x for x in f.read().strip().splitlines() if len(x) and 'ring_front_center_315984823517285848.jpg' in x]
+            # imgs = f.read().strip().splitlines()
+        is_batch = True
+        with open('work_dirs/yolox_l_960_r15e_argoverse_05171128/val_w_ibs_0.65_results_zw_lf.bbox.json', 'r') as f:
+            results_zw_lf = json.load(f)
+    else:
+        imgs = [imgs]
+        is_batch = False
+
+    cfg = model.cfg
+    device = next(model.parameters()).device  # model device
+
+    if isinstance(imgs[0], np.ndarray):
+        cfg = cfg.copy()
+        # set loading pipeline type
+        cfg.data.test.pipeline[0].type = 'LoadImageFromWebcam'
+
+    cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
+    test_pipeline = Compose(cfg.data.test.pipeline)
+
+    datas = []
+    for img in imgs:
+        # prepare data
+        if isinstance(img, np.ndarray):
+            # directly add img
+            data = dict(img=img)
+        else:
+            # add information into dict
+            img_info = img.split()
+            id_fid_lf = [int(_val) - 1 for _val in [img_info[0], img_info[2]]]  # hc-y_TODO: - 500改为 - 1
+            det_result = [_val for _val in results_zw_lf if _val['image_id'] == id_fid_lf[0] and _val['fid'] == id_fid_lf[1]]
+            if len(det_result) > 0:
+                det_result[0]['det_bbox'] = np.array(det_result[0]['det_bbox'], dtype=np.float32)
+                det_result[0]['det_label'] = np.array(det_result[0]['det_label'], dtype=np.int64)
+            det_result_cf = [_val for _val in results_zw_lf if _val['image_id'] == int(img_info[0]) and _val['fid'] == int(img_info[2])]
+            if len(det_result_cf) > 0:
+                det_result_cf[0]['det_bbox'] = np.array(det_result_cf[0]['det_bbox'], dtype=np.float32)
+                det_result_cf[0]['det_label'] = np.array(det_result_cf[0]['det_label'], dtype=np.int64)
+            data = dict(img_info=dict(
+                filename='../datasets/Argoverse-1.1/images/'+img_info[-1]), det_result=det_result, 
+                det_result_cf=det_result_cf, img_prefix=None)
+        # build the data pipeline
+        data = test_pipeline(data)
+        datas.append(data)
+    
+    # assert 0, 'finish vis_cluster_chips'
     data = collate(datas, samples_per_gpu=len(imgs))
     # just get the actual data from DataContainer
     data['img_metas'] = [img_metas.data[0] for img_metas in data['img_metas']]

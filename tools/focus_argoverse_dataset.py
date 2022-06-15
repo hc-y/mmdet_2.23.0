@@ -773,9 +773,11 @@ def generate_chips_dataset(json_dir):
 
 
 def plot_labels_on_img(json_dir, imgs_folder='images'):
+    # with open('work_dirs/yolox_l_960_r15e_argoverse_05171128/val_w_ibs_0.65_results_zw_lf_chips_lf_le3.txt', 'r') as f:
+    #     imgs_filename = [x.split()[-1].split('/')[-1] for x in f.read().strip().splitlines() if len(x)]
     imgs_dir = json_dir.parents[1] / imgs_folder
     json_files = sorted(glob.glob(str(json_dir), recursive=False))
-    for _json_file in json_files:
+    for _json_file in json_files:  # [:1]:  # for vis_cluster_chips on images_ann_le3/val
         with open(_json_file, 'r') as f:
             a = json.load(f)
         cls_names = dict()
@@ -783,7 +785,7 @@ def plot_labels_on_img(json_dir, imgs_folder='images'):
             cls_names[_val['id']]=_val['name']
         for _img in a['images']:
             anns_per_img = [_ann for _ann in a['annotations'] if _ann['image_id'] == _img['id']]
-            if len(anns_per_img) == 0:
+            if len(anns_per_img) == 0:  # or _img['name'] not in imgs_filename:  # for vis_cluster_chips on images_ann_le3/val
                 continue
             # The COCO box format is [top left x, top left y, width, height]
             _labels = np.array([[_val['category_id'],] + _val['bbox'] for _val in anns_per_img], dtype=np.float64)

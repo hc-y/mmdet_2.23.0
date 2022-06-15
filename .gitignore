@@ -128,6 +128,8 @@ work_dirs/
 # trained model on argoverse-hd dataset
 /work_dirs*
 /my_workspace/tmp_ResizeChipsV1v3_sid0_fid0
+/my_workspace/tmp_val_gt_w_chips
+/my_workspace/tmp_val_cluster_chips
 # /my_workspace/tmp*
 # !/my_workspace/tmp_ftsfus_fovs_v1v1/*.jpg
 # !/my_workspace/tmp_ResizeChipsV1v1/*.jpg

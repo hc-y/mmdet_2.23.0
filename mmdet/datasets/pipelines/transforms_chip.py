@@ -396,9 +396,45 @@ class ResizeChipsV1v3(Resize):  # hc-y_add0501:
         if len(det_result) > 0 and len(det_result[0]['det_bbox']) > 0:
             # lf: last frame; cf: current frame; nf: next frame;
             chips_lf = self._cluster_gt_bboxes_ndarray(det_result[0]['det_bbox'], det_result[0]['img_shape'][:2][::-1], score_thr=0.3)
-            if chips_lf is not None and len(chips_lf) >= 3:
-                with open('./my_workspace/tmp/chips_lf_le3.txt', 'a') as f:
-                    f.write('%d %d %d %s\n' % (results['img_info']['id'], results['img_info']['sid'], results['img_info']['fid'], results['ori_filename']))
+            if False:  # for vis_cluster_chips
+            # if chips_lf is not None and len(chips_lf) >= 3:
+                # with open('work_dirs/yolox_l_960_r15e_argoverse_05171128/chips_lf_le3.txt', 'a') as f:
+                #     f.write('%d %d %d %s\n' % (results['img_info']['id'], results['img_info']['sid'], results['img_info']['fid'], results['ori_filename']))
+                
+                # det_result_cf = results.pop('det_result_cf')
+                from pathlib import Path
+                # path_to_tmp = Path('./my_workspace/tmp_val_gt_w_chips/')
+                path_to_tmp = Path('./my_workspace/tmp_val_cluster_chips/')
+                from PIL import Image
+                from tools.focus_argoverse_dataset import DashedImageDraw
+                img_src = Image.open(results['filename'])
+                img_src_draw = DashedImageDraw(img_src)
+                for _chip_ltrb_expand_new in chips_lf:
+                    img_src_draw.dashed_rectangle(_chip_ltrb_expand_new, dash=(8,8), outline=(0,0,0), width=3)
+                img_src.save(path_to_tmp / results['filename'].split('/')[-1])
+
+                img_bg_white = Image.new('RGB', img_src.size, color=(255,255,255))
+                img_bg_white.save(path_to_tmp / 'img_bg_white.jpg')
+
+                det_bbox, det_label = det_result[0]['det_bbox'], det_result[0]['det_label']
+                # path_to_img = './my_workspace/tmp_val_cluster_chips/ring_front_center_315984823517285848.jpg'
+                path_to_img = './my_workspace/tmp_val_cluster_chips/img_bg_white.jpg'
+                img_wh = det_result[0]['img_shape'][:2][::-1]
+                high_score_inds = np.where(det_bbox[:, 4] > 0.3)[0]  # 0.3, 0.2; mmdet/models/detectors/base.py def show_result(score_thr=0.3)
+                _p_bboxes_xywh = xyxy2xywhn(det_bbox[high_score_inds, :4], w=img_wh[0], h=img_wh[1])
+                bbox_vis = np.concatenate((_p_bboxes_xywh, det_bbox[high_score_inds, 4:5]), -1)
+                label_vis = det_label[high_score_inds]
+                l_dets = np.concatenate((np.zeros_like(label_vis[:,None]), label_vis[:,None], bbox_vis), -1)
+                from mmdet.utils import plot_images_v1
+                cls_names = {0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'bus', 5: 'truck', 6: 'traffic_light', 7: 'stop_sign'}
+                plot_images_v1(None, l_dets, (path_to_img, ), path_to_tmp / f'ring_front_center_315984823517285848_lf.jpg', cls_names, None, 'original_image')
+
+                img_src_lf_chips = Image.open(path_to_tmp / f'ring_front_center_315984823517285848_lf_bg_white.jpg')
+                img_src_lf_chips_draw = DashedImageDraw(img_src_lf_chips)
+                for _chip_ltrb_expand_new in chips_lf:
+                    img_src_lf_chips_draw.dashed_rectangle(_chip_ltrb_expand_new, dash=(8,8), outline=(0,0,0), width=3)
+                img_src_lf_chips.save(path_to_tmp / f'ring_front_center_315984823517285848_lf_chips_bg_white.jpg')
+
             if False:
             # if True:
                 det_bbox, det_label = det_result[0]['det_bbox'], det_result[0]['det_label']
@@ -502,6 +538,18 @@ class PadChipsV1v1(Pad):  # hc-y_add0502:
                 max_size = max(results[key].shape[:2])
                 self.size = (max_size, max_size)
             if self.size is not None:
+                if False:  # for vis_cluster_chips
+                    from pathlib import Path
+                    path_to_tmp = Path('./my_workspace/tmp_val_cluster_chips/')
+                    import cv2
+                    cv2.imwrite(str(path_to_tmp / f'ring_front_center_315984823517285848_in.jpg'), results[key])
+                    padded_img = mmcv.impad(
+                        results[key], shape=self.size, pad_val=pad_val)
+                    cv2.imwrite(str(path_to_tmp / f'ring_front_center_315984823517285848_in_pad.jpg'), padded_img)
+                    for i, chip_fields in enumerate(results.get('chips_fields', [])):
+                        cv2.imwrite(str(path_to_tmp / f'ring_front_center_315984823517285848_in_c{i}.jpg'), chip_fields['cimg'])
+                        chip_img_padded = mmcv.impad(chip_fields['cimg'], shape=self.size, pad_val=pad_val)
+                        cv2.imwrite(str(path_to_tmp / f'ring_front_center_315984823517285848_in_c{i}_pad.jpg'), chip_img_padded)
                 padded_img = mmcv.impad(
                     results[key], shape=self.size, pad_val=pad_val)
                 for chip_fields in results.get('chips_fields', []):

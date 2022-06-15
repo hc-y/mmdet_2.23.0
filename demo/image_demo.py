@@ -3,7 +3,7 @@ import asyncio
 from argparse import ArgumentParser
 
 from mmdet.apis import (async_inference_detector, inference_detector,
-                        init_detector, show_result_pyplot)
+                        init_detector, show_result_pyplot, inference_detector_vis_cluster_chips)
 
 
 def parse_args():
@@ -32,7 +32,8 @@ def main(args):
     # build the model from a config file and a checkpoint file
     model = init_detector(args.config, args.checkpoint, device=args.device)
     # test a single image
-    result = inference_detector(model, args.img)
+    # result = inference_detector(model, args.img)
+    result = inference_detector_vis_cluster_chips(model, args.img)
     # show the results
     show_result_pyplot(
         model,
